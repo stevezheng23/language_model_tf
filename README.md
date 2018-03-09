@@ -1,2 +1,2 @@
-# word_representation_tf
+# Word Representation
 Word Representation model in Tensorflow
