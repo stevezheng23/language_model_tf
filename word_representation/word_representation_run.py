@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import tensorflow as tf
 
+from util.debug_logger import *
 from util.default_util import *
 from util.param_util import *
 
@@ -20,6 +21,7 @@ def evaluate(logger,
 
 def main(args):
     hyperparams = load_hyperparams(args.config)
+    logger = DebugLogger(hyperparams.data_log_output_dir)
     
     tf_version = check_tensorflow_version()
     logger.log_print("# tensorflow verison is {0}".format(tf_version))
