@@ -110,58 +110,6 @@ class Word2Vec(object):
             self.ckpt_name = os.path.join(self.ckpt_dir, "model_ckpt")
             self.ckpt_saver = tf.train.Saver()
     
-    def _create_encoder_cell(self,
-                             num_layer,
-                             unit_dim,
-                             unit_type,
-                             activation,
-                             forget_bias,
-                             residual_connect,
-                             drop_out):
-        """create encoder cell"""
-        cell = create_rnn_cell(num_layer, unit_dim, unit_type, activation,
-            forget_bias, residual_connect, drop_out, self.num_gpus, self.default_gpu_id)
-        
-        return cell
-    
-    def _convert_encoder_state(self,
-                               state):
-        """convert encoder state"""
-        encoder_type = self.hyperparams.model_encoder_type
-        num_layer = self.hyperparams.model_encoder_num_layer
-        if encoder_type == "bi":
-            if num_layer > 1:
-                state_list = []
-                for i in range(num_layer):
-                    state_list.append(state[0][i])
-                    state_list.append(state[1][i])
-                state = tuple(state_list)
-        
-        decoding = self.hyperparams.model_decoder_decoding
-        beam_size = self.hyperparams.model_decoder_beam_size
-        if self.mode == "infer":
-            if decoding == "beam_search" and beam_size > 0:
-                state = tf.contrib.seq2seq.tile_batch(state, multiplier=beam_size)
-        
-        return state
-    
-    def _convert_encoder_outputs(self,
-                                 outputs,
-                                 output_length):
-        """convert encoder outputs"""
-        encoder_type = self.hyperparams.model_encoder_type
-        if encoder_type == "bi":
-            outputs = tf.concat(outputs, -1)
-        
-        decoding = self.hyperparams.model_decoder_decoding
-        beam_size = self.hyperparams.model_decoder_beam_size
-        if self.mode == "infer":
-            if decoding == "beam_search" and beam_size > 0:
-                outputs = tf.contrib.seq2seq.tile_batch(outputs, multiplier=beam_size)
-                output_length = tf.contrib.seq2seq.tile_batch(output_length, multiplier=beam_size)
-        
-        return outputs, output_length
-    
     def _build_encoder(self,
                        inputs,
                        input_length):
@@ -205,34 +153,6 @@ class Word2Vec(object):
             
             return outputs, final_state, output_length, embedding_lookup, embedding_placeholder
         
-    def _create_decoder_cell(self,
-                             num_layer,
-                             unit_dim,
-                             unit_type,
-                             activation,
-                             forget_bias,
-                             residual_connect,
-                             drop_out):
-        """create decoder cell"""
-        cell = create_rnn_cell(num_layer, unit_dim, unit_type, activation, 
-            forget_bias, residual_connect, drop_out, self.num_gpus, self.default_gpu_id)
-        
-        return cell
-    
-    def _convert_decoder_cell(self,
-                              cell,
-                              unit_dim,
-                              encoder_outputs,
-                              encoder_output_length):
-        """convert decoder cell"""
-        return cell
-    
-    def _convert_decoder_state(self,
-                               state,
-                               cell):
-        """convert decoder state"""
-        return state
-    
     def _build_decoder(self,
                        inputs,
                        init_state,
