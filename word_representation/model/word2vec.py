@@ -4,6 +4,8 @@ import os.path
 import numpy as np
 import tensorflow as tf
 
+from util.representation_util import *
+
 __all__ = ["TrainResult", "EvaluateResult", "InferResult", "Word2Vec"]
 
 class TrainResult(collections.namedtuple("TrainResult",
@@ -54,7 +56,7 @@ class Word2Vec(object):
                 self.inputs_placeholder = self.data_pipeline.input_placeholder
                 self.batch_size_placeholder = self.data_pipeline.batch_size_placeholder
             
-            #"""build graph for word2vec model"""
+            """build graph for word2vec model"""
             self.logger.log_print("# build graph for word2vec model")
             (logits, sample_id, _, decoder_final_state, encoder_embedding, decoder_embedding,
                 encoder_embedding_placeholder, decoder_embedding_placeholder) = self._build_graph(src_inputs,
