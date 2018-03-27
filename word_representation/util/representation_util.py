@@ -5,7 +5,7 @@ __all__ = ["create_embedding", "create_activation_function"]
 
 def create_embedding(vocab_size,
                      embedding_dim):
-    """create embedding with pre-trained embedding or initializer"""
+    """create embedding layer"""
     init_width = 0.5 / embedding_dim
     embed_initializer = tf.random_uniform_initializer(-init_width, init_width, dtype=tf.float32)
     embedding = tf.get_variable("embedding", shape=[vocab_size, embedding_dim],
@@ -14,6 +14,7 @@ def create_embedding(vocab_size,
     return embedding
 
 def create_activation_function(activation):
+    """create activation function"""
     if activation == "tanh":
         activation_function = tf.nn.tanh
     elif activation == "relu":
