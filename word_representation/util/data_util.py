@@ -17,37 +17,16 @@ def create_char_pipeline(vocab_index,
                          max_length,
                          pad):
     """create data pipeline for char-level representation"""
-    pad_id = tf.cast(vocab_index.lookup(tf.constant(pad)), tf.int32)
-    
-    input_data_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
-    batch_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
-
-    dataset = tf.data.Dataset.from_tensor_slices(input_data_placeholder)
-    dataset = dataset.map(lambda text: tf.string_split([text], delimiter=' ').values)
-    dataset = dataset.map(lambda text: text[:max_length])
-    
-    dataset = dataset.map(lambda text: tf.cast(vocab_index.lookup(text), tf.int32))
-    dataset = dataset.map(lambda text: (text, tf.size(text)))
-    
-    dataset = dataset.padded_batch(
-        batch_size=batch_size_placeholder,
-        padded_shapes=(
-            tf.TensorShape([None]),
-            tf.TensorShape([])),
-        padding_values=(
-            pad_id,
-            0))
-    
-    iterator = dataset.make_initializable_iterator()
-    input_ids, input_length = iterator.get_next()
-    
-    return DataPipeline(initializer=iterator.initializer, input_data=input_ids, input_length=input_length,
-        input_data_placeholder=input_data_placeholder, batch_size_placeholder=batch_size_placeholder)
+    pass
 
 def create_word_pipeline(vocab_index,
                          max_length,
+                         sos,
+                         eos,
                          pad):
     """create data pipeline for word-level representation"""
+    sos_id = tf.cast(vocab_index.lookup(tf.constant(sos)), tf.int32)
+    eos_id = tf.cast(vocab_index.lookup(tf.constant(eos)), tf.int32)
     pad_id = tf.cast(vocab_index.lookup(tf.constant(pad)), tf.int32)
     
     input_data_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
@@ -55,9 +34,11 @@ def create_word_pipeline(vocab_index,
 
     dataset = tf.data.Dataset.from_tensor_slices(input_data_placeholder)
     dataset = dataset.map(lambda text: tf.string_split([text], delimiter=' ').values)
+    dataset = dataset.filter(lambda text: tf.size(text) > 0)
     dataset = dataset.map(lambda text: text[:max_length])
     
     dataset = dataset.map(lambda text: tf.cast(vocab_index.lookup(text), tf.int32))
+    dataset = dataset.map(lambda text: tf.concat(([sos_id], text, [eos_id]), 0))
     dataset = dataset.map(lambda text: (text, tf.size(text)))
     
     dataset = dataset.padded_batch(
