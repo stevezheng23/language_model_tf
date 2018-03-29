@@ -7,14 +7,14 @@ import tensorflow as tf
 
 __all__ = ["DataPipeline", "create_data_pipeline",
            "create_embedding_file", "load_embedding_file", "convert_embedding",
-           "create_vocab_table", "create_vocab_file", "load_vocab_file", 
-           "sentence_to_word", "sentence_to_subword", "sentence_to_char",
-           "load_input_data", "prepare_data"]
+           "create_vocab_table", "create_vocab_file", "load_vocab_file",
+           "process_word", "process_subword", "process_char",
+           "process_input_data", "load_input_data", "prepare_data"]
 
 class DataPipeline(collections.namedtuple("DataPipeline",
     ("initializer", "input_word_feat", "input_subword_feat", "input_char_feat",
      "input_word_mask", "input_subword_mask", "input_char_mask",
-     "input_data_placeholder", "batch_size_placeholder"))):
+     "word_feat_placeholder", "subword_feat_placeholder", "char_feat_placeholder"))):
     pass
 
 def create_data_pipeline(word_vocab_index,
@@ -29,9 +29,9 @@ def create_data_pipeline(word_vocab_index,
                          batch_size,
                          random_seed):
     """create data pipeline for word/subword/char-level representation""" 
-    word_pad_id = tf.cast(word_index.lookup(tf.constant(word_pad)), tf.int32)
-    subword_pad_id = tf.cast(subword_index.lookup(tf.constant(subword_pad)), tf.int32)
-    char_pad_id = tf.cast(char_index.lookup(tf.constant(char_pad)), tf.int32)
+    word_pad_id = tf.cast(word_vocab_index.lookup(tf.constant(word_pad)), tf.int32)
+    subword_pad_id = tf.cast(subword_vocab_index.lookup(tf.constant(subword_pad)), tf.int32)
+    char_pad_id = tf.cast(char_vocab_index.lookup(tf.constant(char_pad)), tf.int32)
     
     word_feat_placeholder = tf.placeholder(shape=[None, None], dtype=tf.string)
     subword_feat_placeholder = tf.placeholder(shape=[None, None, subword_max_length], dtype=tf.string)
@@ -46,12 +46,12 @@ def create_data_pipeline(word_vocab_index,
     dataset = dataset.shuffle(buffer_size, random_seed)
     
     dataset = dataset.map(lambda word_feat, subword_feat, char_feat: (word_feat[:word_max_length],
-        subword_feat[:word_max_length, :subword_max_length], char_feat[:trg_max_length, :char_max_length]))
+        subword_feat[:word_max_length, :subword_max_length], char_feat[:word_max_length, :char_max_length]))
     dataset = dataset.map(lambda word_feat, subword_feat, char_feat: (tf.cast(word_vocab_index.lookup(word_feat), tf.int32),
          tf.cast(subword_vocab_index.lookup(subword_feat), tf.int32), tf.cast(char_vocab_index.lookup(char_feat), tf.int32)))
     
     dataset = dataset.padded_batch(
-        batch_size=batch_size_placeholder,
+        batch_size=batch_size,
         padded_shapes=(
             tf.TensorShape([None]),
             tf.TensorShape([None, subword_max_length]),
@@ -318,8 +318,12 @@ def prepare_data(logger,
         input_data, input_size = load_input_data(input_file)
         logger.log_print("# input data has {0} lines".format(input_size))
     
-    word_feat_data, subword_feat_data, char_feat_data = None
-    word_vocab = None, subword_vocab = None, char_vocab = None
+    word_feat_data = None
+    subword_feat_data = None
+    char_feat_data = None
+    word_vocab = None
+    subword_vocab = None
+    char_vocab = None
     if input_data is None:
         (word_feat_data, subword_feat_data, char_feat_data, word_vocab,
             subword_vocab, char_vocab) = process_input_data(input_data, word_max_length, word_feat_enable,
