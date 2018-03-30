@@ -18,24 +18,14 @@ class DataPipeline(collections.namedtuple("DataPipeline",
     pass
 
 def create_data_pipeline(word_vocab_index,
-                         word_max_length,
-                         word_pad,
                          subword_vocab_index,
-                         subword_max_length,
-                         subword_pad,
                          char_vocab_index,
-                         char_max_length,
-                         char_pad,
                          batch_size,
                          random_seed):
-    """create data pipeline for word/subword/char-level representation""" 
-    word_pad_id = tf.cast(word_vocab_index.lookup(tf.constant(word_pad)), tf.int32)
-    subword_pad_id = tf.cast(subword_vocab_index.lookup(tf.constant(subword_pad)), tf.int32)
-    char_pad_id = tf.cast(char_vocab_index.lookup(tf.constant(char_pad)), tf.int32)
-    
+    """create data pipeline for word/subword/char-level representation"""    
     word_feat_placeholder = tf.placeholder(shape=[None, None], dtype=tf.string)
-    subword_feat_placeholder = tf.placeholder(shape=[None, None, subword_max_length], dtype=tf.string)
-    char_feat_placeholder = tf.placeholder(shape=[None, None, char_max_length], dtype=tf.string)
+    subword_feat_placeholder = tf.placeholder(shape=[None, None, None], dtype=tf.string)
+    char_feat_placeholder = tf.placeholder(shape=[None, None, None], dtype=tf.string)
 
     word_feat_dataset = tf.data.Dataset.from_tensor_slices(word_feat_placeholder)
     subword_feat_dataset = tf.data.Dataset.from_tensor_slices(subword_feat_placeholder)
@@ -45,21 +35,10 @@ def create_data_pipeline(word_vocab_index,
     buffer_size = batch_size * 1000
     dataset = dataset.shuffle(buffer_size, random_seed)
     
-    dataset = dataset.map(lambda word_feat, subword_feat, char_feat: (word_feat[:word_max_length],
-        subword_feat[:word_max_length, :subword_max_length], char_feat[:word_max_length, :char_max_length]))
     dataset = dataset.map(lambda word_feat, subword_feat, char_feat: (tf.cast(word_vocab_index.lookup(word_feat), tf.int32),
          tf.cast(subword_vocab_index.lookup(subword_feat), tf.int32), tf.cast(char_vocab_index.lookup(char_feat), tf.int32)))
     
-    dataset = dataset.padded_batch(
-        batch_size=batch_size,
-        padded_shapes=(
-            tf.TensorShape([None]),
-            tf.TensorShape([None, subword_max_length]),
-            tf.TensorShape([None, char_max_length])),
-        padding_values=(
-            word_pad_id,
-            subword_pad_id,
-            char_pad_id))
+    dataset = dataset.batch(batch_size=batch_size)
     
     iterator = dataset.make_initializable_iterator()
     input_word_feat, input_subword_feat, input_char_feat = iterator.get_next()
@@ -189,12 +168,14 @@ def load_vocab_file(vocab_file):
 
 def process_word(words,
                  word_max_length,
+                 word_sos,
+                 word_eos,
                  word_pad,
                  word_vocab):
     """process words for sentence"""
-    word_feat = np.full((word_max_length), word_pad)
-    word_length = len(words)
-    word_feat[:word_length] = words[:word_max_length]
+    word_feat = np.full((word_max_length+2), word_pad)
+    word_length = min(len(words), word_max_length)+2
+    word_feat[:word_length] = [word_sos] + words[:word_max_length] + [word_eos]
     for word in words:
         if word not in word_vocab:
             word_vocab[word] = 1
@@ -249,6 +230,8 @@ def process_input_data(input_data,
                        input_size,
                        word_max_length,
                        word_feat_enable,
+                       word_sos,
+                       word_eos,
                        word_pad,
                        subword_max_length,
                        subword_feat_enable,
@@ -257,7 +240,7 @@ def process_input_data(input_data,
                        char_feat_enable,
                        char_pad):
     """process input data for featurization"""
-    word_feat_data = np.full((input_size, word_max_length), word_pad)
+    word_feat_data = np.full((input_size, word_max_length+2), word_pad)
     subword_feat_data = np.full((input_size, word_max_length, subword_max_length), subword_pad)
     char_feat_data = np.full((input_size, word_max_length, char_max_length), char_pad)
     word_vocab = {}
@@ -266,7 +249,7 @@ def process_input_data(input_data,
     for i, sentence in enumerate(input_data):
         words = sentence.strip().split(' ')
         if word_feat_enable is True:
-            word_feat = process_word(words, word_max_length, word_pad, word_vocab)
+            word_feat = process_word(words, word_max_length, word_sos, word_eos, word_pad, word_vocab)
             word_feat_data[i,:] = word_feat
         if subword_feat_enable is True:
             subword_feat = process_subword(words, word_max_length, subword_max_length, subword_pad, subword_vocab)
@@ -338,7 +321,8 @@ def prepare_data(logger,
     if input_data is not None:
         (word_feat_data, subword_feat_data, char_feat_data, word_vocab,
             subword_vocab, char_vocab) = process_input_data(input_data, input_size, word_max_length, word_feat_enable,
-            word_pad, subword_max_length, subword_feat_enable, subword_pad, char_max_length, char_feat_enable, char_pad)
+            word_sos, word_eos, word_pad, subword_max_length, subword_feat_enable, subword_pad,
+            char_max_length, char_feat_enable, char_pad)
     
     word_embed_data = None
     if pretrain_word_embed == True:
