@@ -32,8 +32,8 @@ def create_data_pipeline(word_vocab_index,
     char_feat_dataset = tf.data.Dataset.from_tensor_slices(char_feat_placeholder)
     dataset = tf.data.Dataset.zip((word_feat_dataset, subword_feat_dataset, char_feat_dataset))
     
-    #buffer_size = batch_size * 1000
-    #dataset = dataset.shuffle(buffer_size, random_seed)
+    buffer_size = batch_size * 1000
+    dataset = dataset.shuffle(buffer_size, random_seed)
     
     dataset = dataset.map(lambda word_feat, subword_feat, char_feat: (tf.cast(word_vocab_index.lookup(word_feat), tf.int32),
          tf.cast(subword_vocab_index.lookup(subword_feat), tf.int32), tf.cast(char_vocab_index.lookup(char_feat), tf.int32)))
@@ -185,6 +185,18 @@ def process_word(words,
     word_feat[:word_length] = words
     return word_feat
 
+def generate_subword(word,
+                     subword_size):
+    """generate subword for word"""
+    subwords = []
+    chars = list(word)
+    char_length = len(chars)
+    for i in range(char_length-subword_size+1):
+        subword =  ''.join(chars[i:i+subword_size])
+        subwords.append(subword)
+    
+    return subwords
+
 def process_subword(words,
                     word_max_length,
                     subword_max_length,
@@ -193,20 +205,21 @@ def process_subword(words,
                     subword_sos,
                     subword_eos,
                     subword_pad,
+                    subword_size,
                     subword_vocab):
-    """process subwords for sentence"""   
-    for word in words:
-        subwords = list(word)
-        for subword in subwords:
-            if subword not in subword_vocab:
-                subword_vocab[subword] = 1
-            else:
-                subword_vocab[subword] += 1
-    
+    """process subwords for sentence"""    
     subword_feat = np.full((word_max_length+2, subword_max_length+2), subword_pad)
     words = [word_sos] + words[:word_max_length] + [word_eos]
+    word_length = len(words)
     for i, word in enumerate(words):
-        subwords = list(word)
+        subwords = generate_subword(word, subword_size)
+        if i > 0 and i < word_length-1:
+            for subword in subwords:
+                if subword not in subword_vocab:
+                    subword_vocab[subword] = 1
+                else:
+                    subword_vocab[subword] += 1
+        
         subwords = [subword_sos] + subwords[:subword_max_length] + [subword_eos]
         subword_length = len(subwords)
         subword_feat[i,:subword_length] = subwords
@@ -222,19 +235,19 @@ def process_char(words,
                  char_eos,
                  char_pad,
                  char_vocab):
-    """process characters for sentence"""   
-    for word in words:
-        chars = list(word)
-        for ch in chars:
-            if ch not in char_vocab:
-                char_vocab[ch] = 1
-            else:
-                char_vocab[ch] += 1
-    
+    """process characters for sentence"""       
     char_feat = np.full((word_max_length+2, char_max_length+2), char_pad)
     words = [word_sos] + words[:word_max_length] + [word_eos]
+    word_length = len(words)
     for i, word in enumerate(words):
         chars = list(word)
+        if i > 0 and i < word_length-1:
+            for ch in chars:
+                if ch not in char_vocab:
+                    char_vocab[ch] = 1
+                else:
+                    char_vocab[ch] += 1
+        
         chars = [char_sos] + chars[:char_max_length] + [char_eos]
         char_length = len(chars)
         char_feat[i,:char_length] = chars
@@ -253,6 +266,7 @@ def process_input_data(input_data,
                        subword_sos,
                        subword_eos,
                        subword_pad,
+                       subword_size,
                        char_max_length,
                        char_feat_enable,
                        char_sos,
@@ -272,8 +286,9 @@ def process_input_data(input_data,
                 word_sos, word_eos, word_pad, word_vocab)
             word_feat_data[i,:] = word_feat
         if subword_feat_enable is True:
-            subword_feat = process_subword(words, word_max_length, subword_max_length,
-                word_sos, word_eos, subword_sos, subword_eos, subword_pad, subword_vocab)
+            subword_feat = process_subword(words, word_max_length,
+                subword_max_length, word_sos, word_eos, subword_sos,
+                subword_eos, subword_pad, subword_size, subword_vocab)
             subword_feat_data[i,:,:] = subword_feat
         if char_feat_enable is True:
             char_feat = process_char(words, word_max_length, char_max_length,
@@ -316,6 +331,7 @@ def prepare_data(logger,
                  subword_sos,
                  subword_eos,
                  subword_pad,
+                 subword_size,
                  subword_max_length,
                  subword_feat_enable,
                  char_vocab_file,
@@ -343,8 +359,8 @@ def prepare_data(logger,
     if input_data is not None:
         (word_feat_data, subword_feat_data, char_feat_data, word_vocab,
             subword_vocab, char_vocab) = process_input_data(input_data, input_size, word_max_length, word_feat_enable,
-            word_sos, word_eos, word_pad, subword_max_length, subword_feat_enable, subword_sos, subword_eos, subword_pad,
-            char_max_length, char_feat_enable, char_sos, char_eos, char_pad)
+            word_sos, word_eos, word_pad, subword_max_length, subword_feat_enable, subword_sos, subword_eos,
+            subword_pad, subword_size, char_max_length, char_feat_enable, char_sos, char_eos, char_pad)
     
     word_embed_data = None
     if pretrain_word_embed == True:
