@@ -20,9 +20,16 @@ class DataPipeline(collections.namedtuple("DataPipeline",
 def create_data_pipeline(word_vocab_index,
                          subword_vocab_index,
                          char_vocab_index,
+                         word_pad,
+                         subword_pad,
+                         char_pad,
                          batch_size,
                          random_seed):
-    """create data pipeline for word/subword/char-level representation"""    
+    """create data pipeline for word/subword/char-level representation"""
+    word_pad_id = tf.cast(word_vocab_index.lookup(tf.constant(word_pad)), tf.int32)
+    subword_pad_id = tf.cast(subword_vocab_index.lookup(tf.constant(subword_pad)), tf.int32)
+    char_pad_id = tf.cast(char_vocab_index.lookup(tf.constant(char_pad)), tf.int32)
+    
     word_feat_placeholder = tf.placeholder(shape=[None, None], dtype=tf.string)
     subword_feat_placeholder = tf.placeholder(shape=[None, None, None], dtype=tf.string)
     char_feat_placeholder = tf.placeholder(shape=[None, None, None], dtype=tf.string)
@@ -36,18 +43,20 @@ def create_data_pipeline(word_vocab_index,
     dataset = dataset.shuffle(buffer_size, random_seed)
     
     dataset = dataset.map(lambda word_feat, subword_feat, char_feat: (tf.cast(word_vocab_index.lookup(word_feat), tf.int32),
-         tf.cast(subword_vocab_index.lookup(subword_feat), tf.int32), tf.cast(char_vocab_index.lookup(char_feat), tf.int32)))
+        tf.cast(subword_vocab_index.lookup(subword_feat), tf.int32), tf.cast(char_vocab_index.lookup(char_feat), tf.int32)))
+    dataset = dataset.map(lambda word_feat, subword_feat, char_feat: (word_feat, subword_feat, char_feat,
+        tf.not_equal(word_feat, word_pad_id), tf.not_equal(subword_feat, subword_pad_id), tf.not_equal(char_feat, char_pad_id)))
     
     dataset = dataset.batch(batch_size=batch_size)
     
     iterator = dataset.make_initializable_iterator()
-    input_word_feat, input_subword_feat, input_char_feat = iterator.get_next()
+    (input_word_feat, input_subword_feat, input_char_feat, input_word_mask,
+        input_subword_mask, input_char_mask) = iterator.get_next()
     
     return DataPipeline(initializer=iterator.initializer, input_word_feat=input_word_feat,
-        input_subword_feat=input_subword_feat, input_char_feat=input_char_feat,
-        input_word_mask=None, input_subword_mask=None, input_char_mask=None,
-        word_feat_placeholder=word_feat_placeholder, subword_feat_placeholder=subword_feat_placeholder,
-        char_feat_placeholder=char_feat_placeholder)
+        input_subword_feat=input_subword_feat, input_char_feat=input_char_feat, input_word_mask=input_word_mask, 
+        input_subword_mask=input_subword_mask, input_char_mask=input_char_mask, word_feat_placeholder=word_feat_placeholder,
+        subword_feat_placeholder=subword_feat_placeholder, char_feat_placeholder=char_feat_placeholder)
 
 def create_embedding_file(embedding_file,
                           embedding_table):
