@@ -188,56 +188,68 @@ def load_vocab_file(vocab_file):
         raise FileNotFoundError("vocab file not found")
 
 def process_word(words,
+                 word_max_length,
+                 word_pad,
                  word_vocab):
     """process words for sentence"""
+    word_feat = np.full((word_max_length), word_pad)
+    word_length = len(words)
+    word_feat[:word_length] = words[:word_max_length]
     for word in words:
         if word not in word_vocab:
             word_vocab[word] = 1
         else:
             word_vocab[word] += 1
     
-    return words
+    return word_feat
 
 def process_subword(words,
+                    word_max_length,
                     subword_max_length,
+                    subword_pad,
                     subword_vocab):
     """process subwords for sentence"""
-    word_length = len(words)
-    word_subwords = np.full((word_length, char_max_length), char_pad)
+    subword_feat = np.full((word_max_length, subword_max_length), subword_pad)
     for i, word in enumerate(words):
         subwords = list(word)
         subword_length = len(subwords)
-        word_subwords[i,:subword_length] = subwords
+        if i < word_max_length:
+            subword_feat[i,:subword_length] = subwords[:subword_max_length]
+        
         for subword in subwords:
             if subword not in subword_vocab:
                 subword_vocab[subword] = 1
             else:
                 subword_vocab[subword] += 1
     
-    return word_subwords
+    return subword_feat
 
 def process_char(words,
+                 word_max_length,
                  char_max_length,
                  char_pad,
                  char_vocab):
     """process characters for sentence"""
-    word_length = len(words)
-    word_chars = np.full((word_length, char_max_length), char_pad)
+    char_feat = np.full((word_max_length, char_max_length), char_pad)
     for i, word in enumerate(words):
         chars = list(word)
         char_length = len(chars)
-        word_chars[i,:char_length] = chars
+        if i < word_max_length:
+            char_feat[i,:char_length] = chars[:char_max_length]
+        
         for ch in chars:
             if ch not in char_vocab:
                 char_vocab[ch] = 1
             else:
                 char_vocab[ch] += 1
     
-    return word_chars
+    return char_feat
 
 def process_input_data(input_data,
+                       input_size,
                        word_max_length,
                        word_feat_enable,
+                       word_pad,
                        subword_max_length,
                        subword_feat_enable,
                        subword_pad,
@@ -245,37 +257,36 @@ def process_input_data(input_data,
                        char_feat_enable,
                        char_pad):
     """process input data for featurization"""
-    word_feat_data = []
-    subword_feat_data = []
-    char_feat_data = []
+    word_feat_data = np.full((input_size, word_max_length), word_pad)
+    subword_feat_data = np.full((input_size, word_max_length, subword_max_length), subword_pad)
+    char_feat_data = np.full((input_size, word_max_length, char_max_length), char_pad)
     word_vocab = {}
     subword_vocab = {}
     char_vocab = {}
-    for sentence in input_data:
+    for i, sentence in enumerate(input_data):
         words = sentence.strip().split(' ')
         if word_feat_enable is True:
-            word_feat = process_word(words, word_vocab)
+            word_feat = process_word(words, word_max_length, word_pad, word_vocab)
+            word_feat_data[i,:] = word_feat
         if subword_feat_enable is True:
-            subword_feat = process_subword(words, subword_max_length, subword_pad, subword_vocab)
+            subword_feat = process_subword(words, word_max_length, subword_max_length, subword_pad, subword_vocab)
+            subword_feat_data[i,:,:] = subword_feat
         if char_feat_enable is True:
-            char_feat = process_char(words, char_max_length, char_pad, char_vocab)
-        
-        word_feat_data.append(word_feat)
-        subword_feat_data.append(subword_feats)
-        char_feat_data.append(char_feats)
-        
+            char_feat = process_char(words, word_max_length, char_max_length, char_pad, char_vocab)
+            char_feat_data[i,:,:] = char_feat
+    
     return word_feat_data, subword_feat_data, char_feat_data, word_vocab, subword_vocab, char_vocab
 
 def load_input_data(input_file):
     """load input data from input file"""
-    input_table = []
+    input_data = []
     if tf.gfile.Exists(input_file):
         with codecs.getreader("utf-8")(tf.gfile.GFile(input_file, "rb")) as file:
             for line in file:
-                input_table.append(line.strip())
-            input_size = len(input_table)
+                input_data.append(line.strip())
+            input_size = len(input_data)
             
-            return input_table, input_size
+            return input_data, input_size
     else:
         raise FileNotFoundError("input file not found")
 
@@ -324,10 +335,10 @@ def prepare_data(logger,
     word_vocab = None
     subword_vocab = None
     char_vocab = None
-    if input_data is None:
+    if input_data is not None:
         (word_feat_data, subword_feat_data, char_feat_data, word_vocab,
-            subword_vocab, char_vocab) = process_input_data(input_data, word_max_length, word_feat_enable,
-            subword_max_length, subword_feat_enable, subword_pad, char_max_length, char_feat_enable, char_pad)
+            subword_vocab, char_vocab) = process_input_data(input_data, input_size, word_max_length, word_feat_enable,
+            word_pad, subword_max_length, subword_feat_enable, subword_pad, char_max_length, char_feat_enable, char_pad)
     
     word_embed_data = None
     if pretrain_word_embed == True:
