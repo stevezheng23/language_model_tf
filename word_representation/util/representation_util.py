@@ -1,17 +1,23 @@
 import numpy as np
 import tensorflow as tf
 
-__all__ = ["create_embedding", "create_activation_function"]
+__all__ = ["create_embedding", "create_activation_function", "create_rnn_cell", "create_rnn_single_cell"]
 
 def create_embedding(vocab_size,
-                     embedding_dim):
-    """create embedding layer"""
-    init_width = 0.5 / embedding_dim
-    embed_initializer = tf.random_uniform_initializer(-init_width, init_width, dtype=tf.float32)
-    embedding = tf.get_variable("embedding", shape=[vocab_size, embedding_dim],
-        initializer=embed_initializer, dtype=tf.float32, trainable=True)
+                     embedding_dim,
+                     pretrained=False):
+    """create embedding with pre-trained embedding or initializer"""
+    if pretrained is True:
+        embedding = tf.get_variable("embedding", shape=[vocab_size, embedding_dim], dtype=tf.float32,
+            initializer=tf.zeros_initializer, trainable=False)
+        embedding_placeholder = tf.placeholder(name="embedding_placeholder",
+                                               shape=[vocab_size, embedding_dim], dtype=tf.float32)
+        embedding = embedding.assign(embedding_placeholder)
+    else:
+        embedding = tf.get_variable("embedding", shape=[vocab_size, embedding_dim], dtype=tf.float32)
+        embedding_placeholder = None
     
-    return embedding
+    return embedding, embedding_placeholder
 
 def create_activation_function(activation):
     """create activation function"""
