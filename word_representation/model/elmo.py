@@ -6,7 +6,7 @@ import tensorflow as tf
 
 from util.representation_util import *
 
-__all__ = ["TrainResult", "EvaluateResult", "InferResult", "Word2Vec"]
+__all__ = ["TrainResult", "EvaluateResult", "InferResult", "ELMo"]
 
 class TrainResult(collections.namedtuple("TrainResult",
     ("loss", "learning_rate", "global_step", "batch_size", "summary"))):
@@ -19,26 +19,20 @@ class InferResult(collections.namedtuple("InferResult",
     ("logits", "sample_id", "sample_word", "batch_size", "summary"))):
     pass
 
-class Word2Vec(object):
-    """word2vec skip-gram model"""
+class ELMo(object):
+    """embedding from language model"""
     def __init__(self,
                  logger,
                  hyperparams,
                  data_pipeline,
-                 vocab_size,
-                 vocab_index,
-                 vocab_inverted_index=None,
                  mode="train",
-                 scope="word2vec"):
+                 scope="emlo"):
         """initialize word2vec model"""
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             self.logger = logger
             self.hyperparams = hyperparams
             
             self.data_pipeline = data_pipeline
-            self.vocab_size = vocab_size
-            self.vocab_index = vocab_index
-            self.vocab_inverted_index = vocab_inverted_index
             self.mode = mode
             self.scope = scope
             
@@ -48,16 +42,13 @@ class Word2Vec(object):
                 .format(self.num_gpus, self.default_gpu_id))
             
             """get batch inputs from data pipeline"""
-            inputs = self.data_pipeline.input
-            input_length = self.data_pipeline.input_length
-            self.batch_size = tf.size(input_length)
+            input_word_feat = self.data_pipeline.input_word_feat
+            input_subword_feat = self.data_pipeline.input_subword_feat
+            input_char_feat = self.data_pipeline.input_char_feat
+            self.batch_size = tf.shape(input_word_feat)[0]
             
-            if self.mode == "encode" or self.mode == "infer":
-                self.inputs_placeholder = self.data_pipeline.input_placeholder
-                self.batch_size_placeholder = self.data_pipeline.batch_size_placeholder
-            
-            """build graph for word2vec model"""
-            self.logger.log_print("# build graph for word2vec model")
+            """build graph for emlo model"""
+            self.logger.log_print("# build graph for emlo model")
             (logits, sample_id, _, decoder_final_state, encoder_embedding, decoder_embedding,
                 encoder_embedding_placeholder, decoder_embedding_placeholder) = self._build_graph(src_inputs,
                     trg_inputs, src_input_length, trg_input_length)
@@ -115,7 +106,7 @@ class Word2Vec(object):
     def _build_encoder(self,
                        inputs,
                        input_length):
-        """build encoder for seq2seq model"""
+        """build encoder for elmo model"""
         embed_dim = self.hyperparams.model_encoder_embed_dim
         encoder_type = self.hyperparams.model_encoder_type
         num_layer = self.hyperparams.model_encoder_num_layer
@@ -232,7 +223,7 @@ class Word2Vec(object):
                      trg_inputs,
                      src_input_length,
                      trg_input_length):
-        """build graph for seq2seq model"""       
+        """build graph for elmo model"""       
         """encoder: encode source inputs to get encoder outputs"""
         self.logger.log_print("# build encoder for seq2seq model")
         (encoder_outputs, encoder_final_state, encoder_output_length, encoder_embedding,

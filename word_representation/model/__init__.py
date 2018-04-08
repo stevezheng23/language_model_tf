@@ -1,1 +1,1 @@
-__all__ = ["word2vec"]
+__all__ = ["elmo"]
