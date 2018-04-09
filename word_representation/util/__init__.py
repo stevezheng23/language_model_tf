@@ -1,1 +1,2 @@
-__all__ = ["debug_logger", "default_util", "data_util", "param_util", "model_util", "representation_util"]
+__all__ = ["train_logger", "eval_logger", "debug_logger", "summary_writer",
+           "default_util", "param_util", "data_util", "model_util", "representation_util"]

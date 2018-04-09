@@ -107,6 +107,44 @@ class LanguageModel(object):
             
             return input_embedding, embedding_placeholder
     
+    def _create_encoder_cell(self,
+                             num_layer,
+                             unit_dim,
+                             unit_type,
+                             activation,
+                             forget_bias,
+                             residual_connect,
+                             drop_out):
+        """create encoder cell"""
+        cell = create_rnn_cell(num_layer, unit_dim, unit_type, activation,
+            forget_bias, residual_connect, drop_out, self.num_gpus, self.default_gpu_id)
+        
+        return cell
+    
+    def _convert_encoder_outputs(self,
+                                 outputs):
+        """convert encoder outputs"""
+        encoder_type = self.hyperparams.model_encoder_type
+        if encoder_type == "bi":
+            outputs = tf.concat(outputs, -1)
+        
+        return outputs
+    
+    def _convert_encoder_state(self,
+                               state):
+        """convert encoder state"""
+        encoder_type = self.hyperparams.model_encoder_type
+        num_layer = self.hyperparams.model_encoder_num_layer
+        if encoder_type == "bi":
+            if num_layer > 1:
+                state_list = []
+                for i in range(num_layer):
+                    state_list.append(state[0][i])
+                    state_list.append(state[1][i])
+                state = tuple(state_list)
+        
+        return state
+    
     def _build_encoder(self,
                        encoder_input,
                        encoder_input_length):
@@ -137,6 +175,9 @@ class LanguageModel(object):
             else:
                 raise ValueError("unsupported encoder type {0}".format(encoder_type))
             
+            encoder_output = self._convert_encoder_outputs(encoder_output)
+            encoder_final_state = self._convert_encoder_state(encoder_final_state)
+                        
             return encoder_output, encoder_final_state
         
     def _build_decoder(self,
@@ -172,8 +213,8 @@ class LanguageModel(object):
                       label,
                       logit_length):
         """compute optimization loss"""
-        mask = tf.sequence_mask(logit_length, maxlen=tf.shape(logit)[1], dtype=logits.dtype)
-        cross_entropy = tf.contrib.seq2seq.sequence_loss(logits=logit, labels=label,
+        mask = tf.sequence_mask(logit_length, maxlen=tf.shape(logit)[1], dtype=logit.dtype)
+        cross_entropy = tf.contrib.seq2seq.sequence_loss(logits=logit, targets=label,
             weights=mask, average_across_timesteps=False, average_across_batch=True)
         loss = tf.reduce_sum(cross_entropy)
         
