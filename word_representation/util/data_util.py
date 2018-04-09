@@ -33,7 +33,7 @@ def create_lm_pipeline(text_file,
     buffer_size = batch_size * 1000
     dataset = dataset.shuffle(buffer_size, random_seed)
     
-    dataset = dataset.map(lambda text: tf.string_split([src], delimiter=' ').values)
+    dataset = dataset.map(lambda text: tf.string_split([text], delimiter=' ').values)
     dataset = dataset.filter(lambda text: tf.size(text) > 0)
     dataset = dataset.map(lambda text: text[:max_length])
     
@@ -48,7 +48,7 @@ def create_lm_pipeline(text_file,
             tf.TensorShape([None]),
             tf.TensorShape([None]),
             tf.TensorShape([]),
-            tf.TensorShape([]),
+            tf.TensorShape([])),
         padding_values=(
             pad_id,
             pad_id,

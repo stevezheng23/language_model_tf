@@ -8,7 +8,7 @@ from util.default_util import *
 from util.data_util import *
 from util.representation_util import *
 
-__all__ = ["TrainModel", "EvalModel", "create_train_model", "create_eval_model"
+__all__ = ["TrainModel", "EvalModel", "create_train_model", "create_eval_model",
            "get_model_creator", "init_model", "load_model"]
 
 class TrainModel(collections.namedtuple("TrainModel",
@@ -24,7 +24,7 @@ def create_train_model(logger,
     graph = tf.Graph()
     with graph.as_default():
         logger.log_print("# prepare train data")
-        (input_data, embedding_data, src_vocab_size, vocab_index,
+        (input_data, embedding_data, vocab_size, vocab_index,
             vocab_inverted_index) = prepare_data(logger, hyperparams.data_train_file,
             hyperparams.data_vocab_file, hyperparams.data_embedding_file, hyperparams.data_full_embedding_file,
             hyperparams.data_vocab_size, hyperparams.model_embed_dim, hyperparams.data_unk, hyperparams.data_sos,
@@ -47,7 +47,7 @@ def create_eval_model(logger,
     graph = tf.Graph()
     with graph.as_default():
         logger.log_print("# prepare evaluation data")
-        (input_data, embedding_data, src_vocab_size, vocab_index,
+        (input_data, embedding_data, vocab_size, vocab_index,
             vocab_inverted_index) = prepare_data(logger, hyperparams.data_train_file,
             hyperparams.data_vocab_file, hyperparams.data_embedding_file, hyperparams.data_full_embedding_file,
             hyperparams.data_vocab_size, hyperparams.model_embed_dim, hyperparams.data_unk, hyperparams.data_sos,
