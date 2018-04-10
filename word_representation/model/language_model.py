@@ -4,6 +4,7 @@ import os.path
 import numpy as np
 import tensorflow as tf
 
+from util.default_util import *
 from util.representation_util import *
 
 __all__ = ["TrainResult", "EvaluateResult", "LanguageModel"]
@@ -13,6 +14,10 @@ class TrainResult(collections.namedtuple("TrainResult",
     pass
 
 class EvaluateResult(collections.namedtuple("EvaluateResult", ("loss", "batch_size", "word_count"))):
+    pass
+
+class InferResult(collections.namedtuple("InferResult",
+    ("logit", "sample_id", "sample_word", "batch_size"))):
     pass
 
 class LanguageModel(object):
@@ -52,10 +57,19 @@ class LanguageModel(object):
             
             """build graph for language model"""
             self.logger.log_print("# build graph for language model")
-            (logit, encoder_output, encoder_final_state,
+            (logit, encoder_layer_output, encoder_layer_final_state,
                 input_embedding, embedding_placeholder) = self._build_graph(text_input, text_input_length)
             self.input_embedding = input_embedding
             self.embedding_placeholder = embedding_placeholder
+            
+            if self.mode == "eval" or self.mode == "infer":
+                sample_id, sample_word = self._generate_prediction(logit)
+                self.eval_logit = logit
+                self.eval_sample_id = sample_id
+                self.eval_sample_word = sample_word
+                self.infer_logit = logit
+                self.infer_sample_id = sample_id
+                self.infer_sample_word = sample_word
             
             if self.mode == "train" or self.mode == "eval":
                 logit_length = self.data_pipeline.text_output_length
@@ -107,90 +121,71 @@ class LanguageModel(object):
             
             return input_embedding, embedding_placeholder
     
-    def _create_encoder_cell(self,
-                             num_layer,
-                             unit_dim,
-                             unit_type,
-                             activation,
-                             forget_bias,
-                             residual_connect,
-                             drop_out):
-        """create encoder cell"""
-        cell = create_rnn_cell(num_layer, unit_dim, unit_type, activation,
-            forget_bias, residual_connect, drop_out, self.num_gpus, self.default_gpu_id)
-        
-        return cell
-    
-    def _convert_encoder_outputs(self,
-                                 outputs):
-        """convert encoder outputs"""
+    def _build_rnn_layer(self,
+                         layer_input,
+                         layer_input_length,
+                         layer_id):
+        """build rnn layer for language model"""
         encoder_type = self.hyperparams.model_encoder_type
-        if encoder_type == "bi":
-            outputs = tf.concat(outputs, -1)
+        unit_dim = self.hyperparams.model_encoder_unit_dim
+        unit_type = self.hyperparams.model_encoder_unit_type
+        hidden_activation = self.hyperparams.model_encoder_hidden_activation
+        forget_bias = self.hyperparams.model_encoder_forget_bias
+        residual_connect = self.hyperparams.model_encoder_residual_connect
+        drop_out = self.hyperparams.model_encoder_dropout
+        device_spec = get_device_spec(self.default_gpu_id+layer_id, self.num_gpus)
         
-        return outputs
-    
-    def _convert_encoder_state(self,
-                               state):
-        """convert encoder state"""
-        encoder_type = self.hyperparams.model_encoder_type
-        num_layer = self.hyperparams.model_encoder_num_layer
-        if encoder_type == "bi":
-            if num_layer > 1:
-                state_list = []
-                for i in range(num_layer):
-                    state_list.append(state[0][i])
-                    state_list.append(state[1][i])
-                state = tuple(state_list)
+        with tf.variable_scope("rnn/layer_{0}".format(layer_id), reuse=tf.AUTO_REUSE):
+            if encoder_type == "uni":
+                cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
+                    forget_bias, residual_connect, drop_out, device_spec)
+                layer_output, layer_final_state = tf.nn.dynamic_rnn(cell=cell, inputs=layer_input,
+                    sequence_length=layer_input_length, dtype=tf.float32, scope="")
+            elif encoder_type == "bi":
+                fwd_cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
+                    forget_bias, residual_connect, drop_out, device_spec)
+                bwd_cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
+                    forget_bias, residual_connect, drop_out, device_spec)
+                layer_output, layer_final_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=fwd_cell, cell_bw=bwd_cell,
+                    inputs=layer_input, sequence_length=layer_input_length, dtype=tf.float32)
+                layer_output = tf.concat(layer_output, -1)
+            else:
+                raise ValueError("unsupported encoder type {0}".format(encoder_type))
         
-        return state
+        return layer_output, layer_final_state
     
     def _build_encoder(self,
                        encoder_input,
                        encoder_input_length):
         """build encoder layer for language model"""
-        encoder_type = self.hyperparams.model_encoder_type
         num_layer = self.hyperparams.model_encoder_num_layer
-        unit_dim = self.hyperparams.model_encoder_unit_dim
-        unit_type = self.hyperparams.model_encoder_unit_type
-        hidden_activation = self.hyperparams.model_encoder_hidden_activation
-        residual_connect = self.hyperparams.model_encoder_residual_connect
-        forget_bias = self.hyperparams.model_encoder_forget_bias
-        drop_out = self.hyperparams.model_encoder_dropout
         
         with tf.variable_scope("encoder", reuse=tf.AUTO_REUSE):
             self.logger.log_print("# create hidden layer for encoder")
-            if encoder_type == "uni":
-                cell = self._create_encoder_cell(num_layer, unit_dim, unit_type, hidden_activation,
-                    forget_bias, residual_connect, drop_out)
-                encoder_output, encoder_final_state = tf.nn.dynamic_rnn(cell=cell, inputs=encoder_input,
-                    sequence_length=encoder_input_length, dtype=tf.float32)
-            elif encoder_type == "bi":
-                fwd_cell = self._create_encoder_cell(num_layer, unit_dim, unit_type, hidden_activation,
-                    forget_bias, residual_connect, drop_out)
-                bwd_cell = self._create_encoder_cell(num_layer, unit_dim, unit_type, hidden_activation,
-                    forget_bias, residual_connect, drop_out)
-                encoder_output, encoder_final_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=fwd_cell, cell_bw=bwd_cell,
-                    inputs=encoder_input, sequence_length=encoder_input_length, dtype=tf.float32)
-            else:
-                raise ValueError("unsupported encoder type {0}".format(encoder_type))
+            layer_input = encoder_input
+            layer_input_length = encoder_input_length
+            encoder_layer_output = []
+            encoder_layer_final_state = []
+            for i in range(num_layer):
+                layer_output, layer_final_state = self._build_rnn_layer(layer_input, layer_input_length, i)
+                encoder_layer_output.append(layer_output)
+                encoder_layer_final_state.append(layer_final_state)
+                layer_input = layer_output
             
-            encoder_output = self._convert_encoder_outputs(encoder_output)
-            encoder_final_state = self._convert_encoder_state(encoder_final_state)
-                        
-            return encoder_output, encoder_final_state
+            return encoder_layer_output, encoder_layer_final_state
         
     def _build_decoder(self,
                        decoder_input):
         """build decoder layer for language model"""
+        projection_activation = self.hyperparams.model_projection_activation
+        projection_activation_func = create_activation_function(projection_activation)
+        
         with tf.variable_scope("decoder", reuse=tf.AUTO_REUSE):
-            projection_activation = create_activation_function(self.hyperparams.model_projection_activation)
-            
             """create projection layer for decoder"""
             self.logger.log_print("# create projection layer for decoder")
-            projector = tf.layers.Dense(units=self.vocab_size, activation=projection_activation)
+            dense_projector = tf.layers.Dense(units=self.vocab_size, activation=projection_activation_func)
+            decoder_output = dense_projector.apply(decoder_input)
             
-            decoder_output = projector.apply(decoder_input)
             return decoder_output
     
     def _build_graph(self,
@@ -201,12 +196,13 @@ class LanguageModel(object):
         input_embedding, embedding_placeholder = self._build_embedding(input_data)
         
         self.logger.log_print("# build encoder layer for language model")
-        encoder_output, encoder_final_state = self._build_encoder(input_embedding, input_length)
+        encoder_layer_output, encoder_layer_final_state = self._build_encoder(input_embedding, input_length)
+        encoder_output = encoder_layer_output[-1]
         
         self.logger.log_print("# build decoder layer for language model")
         decoder_output = self._build_decoder(encoder_output)
         
-        return decoder_output, encoder_output, encoder_final_state, input_embedding, embedding_placeholder
+        return decoder_output, encoder_layer_output, encoder_layer_final_state, input_embedding, embedding_placeholder
     
     def _compute_loss(self,
                       logit,
@@ -288,6 +284,14 @@ class LanguageModel(object):
         
         return update_model, clipped_gradients, gradient_norm
     
+    def _generate_prediction(self,
+                             logit):
+        """generate prediction"""
+        sample_id = tf.argmax(logit, axis=-1)
+        sample_word = self.vocab_inverted_index.lookup(sample_id)
+        
+        return sample_id, sample_word
+    
     def _get_train_summary(self):
         """get train summary"""
         return tf.summary.merge([tf.summary.scalar("learning_rate", self.learning_rate),
@@ -319,6 +323,21 @@ class LanguageModel(object):
             loss, batch_size, word_count = sess.run([self.eval_loss, self.batch_size, self.word_count])
         
         return EvaluateResult(loss=loss, batch_size=batch_size, word_count=word_count)
+    
+    def infer(self,
+              sess,
+              embedding):
+        """infer language model"""
+        if self.pretrained_embedding == True:
+            logit, sample_id, sample_word, batch_size = sess.run([self.infer_logit,
+                self.infer_sample_id, self.infer_sample_word, self.batch_size],
+                feed_dict={self.embedding_placeholder: embedding})
+        else:
+            logit, sample_id, sample_word, batch_size = sess.run([self.infer_logit,
+                self.infer_sample_id, self.infer_sample_word, self.batch_size])
+        
+        return InferResult(logit=logit, sample_id=sample_id,
+            sample_word=sample_word, batch_size=batch_size)
     
     def save(self,
              sess,
