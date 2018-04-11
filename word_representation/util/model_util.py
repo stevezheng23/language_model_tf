@@ -9,7 +9,7 @@ from util.data_util import *
 from util.representation_util import *
 
 __all__ = ["TrainModel", "EvalModel", "create_train_model", "create_eval_model",
-           "get_model_creator", "init_model", "load_model"]
+           "create_infer_model", "get_model_creator", "init_model", "load_model"]
 
 class TrainModel(collections.namedtuple("TrainModel",
     ("graph", "model", "data_pipeline", "embedding"))):
@@ -17,6 +17,10 @@ class TrainModel(collections.namedtuple("TrainModel",
 
 class EvalModel(collections.namedtuple("EvalModel",
     ("graph", "model", "data_pipeline", "embedding"))):
+    pass
+
+class InferModel(collections.namedtuple("InferModel",
+    ("graph", "model", "data_pipeline", "input_data", "embedding"))):
     pass
 
 def create_train_model(logger,
@@ -33,12 +37,12 @@ def create_train_model(logger,
         logger.log_print("# create train data pipeline")
         data_pipeline = create_lm_pipeline(hyperparams.data_train_file, vocab_index,
             hyperparams.data_max_length, hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad,
-            hyperparams.train_batch_size, hyperparams.train_random_seed)
+            hyperparams.train_batch_size, hyperparams.train_random_seed, hyperparams.train_enable_shuffle)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
-            vocab_size=vocab_size, vocab_index=vocab_index, vocab_inverted_index=vocab_inverted_index, mode="train",
-            pretrained_embedding=hyperparams.model_pretrained_embedding, scope=hyperparams.model_scope)
+            vocab_size=vocab_size, vocab_index=vocab_index, vocab_inverted_index=vocab_inverted_index,
+            mode="train", scope=hyperparams.model_scope)
         
         return TrainModel(graph=graph, model=model, data_pipeline=data_pipeline, embedding=embedding_data)
 
@@ -46,24 +50,47 @@ def create_eval_model(logger,
                       hyperparams):
     graph = tf.Graph()
     with graph.as_default():
-        logger.log_print("# prepare evaluation data")
+        logger.log_print("# prepare eval data")
         (input_data, embedding_data, vocab_size, vocab_index,
-            vocab_inverted_index) = prepare_data(logger, hyperparams.data_train_file,
+            vocab_inverted_index) = prepare_data(logger, hyperparams.data_eval_file,
             hyperparams.data_vocab_file, hyperparams.data_embedding_file, hyperparams.data_full_embedding_file,
             hyperparams.data_vocab_size, hyperparams.model_embed_dim, hyperparams.data_unk, hyperparams.data_sos,
             hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_pretrained_embedding)
     
-        logger.log_print("# create evaluation data pipeline")
-        data_pipeline = create_lm_pipeline(hyperparams.data_train_file, vocab_index,
+        logger.log_print("# create eval data pipeline")
+        data_pipeline = create_lm_pipeline(hyperparams.data_eval_file, vocab_index,
             hyperparams.data_max_length, hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad,
-            hyperparams.train_batch_size, hyperparams.train_random_seed)
+            hyperparams.train_eval_batch_size, hyperparams.train_random_seed, False)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
-            vocab_size=vocab_size, vocab_index=vocab_index, vocab_inverted_index=vocab_inverted_index, mode="eval",
-            pretrained_embedding=hyperparams.model_pretrained_embedding, scope=hyperparams.model_scope)
+            vocab_size=vocab_size, vocab_index=vocab_index, vocab_inverted_index=vocab_inverted_index,
+            mode="eval", scope=hyperparams.model_scope)
         
         return EvalModel(graph=graph, model=model, data_pipeline=data_pipeline, embedding=embedding_data)
+
+def create_infer_model(logger,
+                       hyperparams):
+    graph = tf.Graph()
+    with graph.as_default():
+        logger.log_print("# prepare infer data")
+        (input_data, embedding_data, vocab_size, vocab_index,
+            vocab_inverted_index) = prepare_data(logger, hyperparams.data_eval_file,
+            hyperparams.data_vocab_file, hyperparams.data_embedding_file, hyperparams.data_full_embedding_file,
+            hyperparams.data_vocab_size, hyperparams.model_embed_dim, hyperparams.data_unk, hyperparams.data_sos,
+            hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_pretrained_embedding)
+    
+        logger.log_print("# create infer data pipeline")
+        data_pipeline = create_lm_infer_pipeline(vocab_index, hyperparams.data_max_length,
+            hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad)
+        
+        model_creator = get_model_creator(hyperparams.model_type)
+        model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
+            vocab_size=vocab_size, vocab_index=vocab_index, vocab_inverted_index=vocab_inverted_index,
+            mode="infer", scope=hyperparams.model_scope)
+        
+        return InferModel(graph=graph, model=model, data_pipeline=data_pipeline,
+            input_data=input_data, embedding=embedding_data)
 
 def get_model_creator(model_type):
     if model_type == "vanilla":

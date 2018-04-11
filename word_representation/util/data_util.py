@@ -5,7 +5,7 @@ import os.path
 import numpy as np
 import tensorflow as tf
 
-__all__ = ["LanguageModelPipeline", "create_lm_pipeline",
+__all__ = ["LanguageModelPipeline", "create_lm_infer_pipeline", "create_lm_pipeline",
            "load_pretrained_embedding", "create_embedding_file", "convert_embedding",
            "load_vocab_table", "create_vocab_table", "create_vocab_file",
            "load_input", "prepare_data"]
@@ -15,6 +15,45 @@ class LanguageModelPipeline(collections.namedtuple("LanguageModelPipeline",
      "text_data_placeholder", "batch_size_placeholder"))):
     pass
 
+def create_lm_infer_pipeline(vocab_index,
+                             max_length,
+                             sos,
+                             eos,
+                             pad):
+    """create language model infer data pipeline based on config"""
+    sos_id = tf.cast(vocab_index.lookup(tf.constant(sos)), tf.int32)
+    eos_id = tf.cast(vocab_index.lookup(tf.constant(eos)), tf.int32)
+    pad_id = tf.cast(vocab_index.lookup(tf.constant(pad)), tf.int32)
+    
+    input_data_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
+    batch_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
+    
+    dataset = tf.data.Dataset.from_tensor_slices(input_data_placeholder)
+    dataset = dataset.map(lambda text: tf.string_split([text], delimiter=' ').values)
+    dataset = dataset.filter(lambda text: tf.size(text) > 0)
+    dataset = dataset.map(lambda text: text[:max_length])
+    
+    dataset = dataset.map(lambda text: tf.cast(vocab_index.lookup(text), tf.int32))
+    dataset = dataset.map(lambda text: tf.concat((text, [eos_id]), 0))
+    dataset = dataset.map(lambda text: (text, tf.size(text)))
+    
+    dataset = dataset.padded_batch(
+        batch_size=batch_size_placeholder,
+        padded_shapes=(
+            tf.TensorShape([None]),
+            tf.TensorShape([])),
+        padding_values=(
+            pad_id,
+            0))
+    
+    iterator = dataset.make_initializable_iterator()
+    input_id, input_len = iterator.get_next()
+    
+    return LanguageModelPipeline(initializer=iterator.initializer,
+        text_input=input_id, text_output=None, text_input_length=input_len,
+        text_output_length=None, text_data_placeholder=input_data_placeholder,
+        batch_size_placeholder=batch_size_placeholder)
+
 def create_lm_pipeline(text_file,
                        vocab_index,
                        max_length,
@@ -22,7 +61,8 @@ def create_lm_pipeline(text_file,
                        eos,
                        pad,
                        batch_size,
-                       random_seed):
+                       random_seed,
+                       enable_shuffle):
     """create language model data pipeline based on config"""
     sos_id = tf.cast(vocab_index.lookup(tf.constant(sos)), tf.int32)
     eos_id = tf.cast(vocab_index.lookup(tf.constant(eos)), tf.int32)
@@ -30,15 +70,16 @@ def create_lm_pipeline(text_file,
     
     dataset = tf.data.TextLineDataset([text_file])
     
-    buffer_size = batch_size * 1000
-    dataset = dataset.shuffle(buffer_size, random_seed)
+    if enable_shuffle == True:
+        buffer_size = batch_size * 1000
+        dataset = dataset.shuffle(buffer_size, random_seed)
     
     dataset = dataset.map(lambda text: tf.string_split([text], delimiter=' ').values)
     dataset = dataset.filter(lambda text: tf.size(text) > 0)
     dataset = dataset.map(lambda text: text[:max_length])
     
     dataset = dataset.map(lambda text: tf.cast(vocab_index.lookup(text), tf.int32))
-    dataset = dataset.map(lambda text: (tf.concat(([sos_id], text), 0), tf.concat((text, [eos_id]), 0)))
+    dataset = dataset.map(lambda text: (tf.concat((text, [eos_id]), 0), tf.concat(([sos_id], text), 0)))
     dataset = dataset.map(lambda text_input, text_output:
         (text_input, text_output, tf.size(text_input), tf.size(text_output)))
     
@@ -56,10 +97,10 @@ def create_lm_pipeline(text_file,
             0))
     
     iterator = dataset.make_initializable_iterator()
-    input_ids, output_ids, input_len, output_len = iterator.get_next()
+    input_id, output_id, input_len, output_len = iterator.get_next()
     
     return LanguageModelPipeline(initializer=iterator.initializer,
-        text_input=input_ids, text_output=output_ids, text_input_length=input_len,
+        text_input=input_id, text_output=output_id, text_input_length=input_len,
         text_output_length=output_len, text_data_placeholder=None, batch_size_placeholder=None)
 
 def load_pretrained_embedding(embedding_file,
