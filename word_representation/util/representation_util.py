@@ -3,7 +3,8 @@ import tensorflow as tf
 
 from util.default_util import *
 
-__all__ = ["create_embedding", "create_activation_function", "create_rnn_cell", "create_rnn_single_cell"]
+__all__ = ["create_embedding", "create_activation_function",
+           "create_rnn_cell", "create_rnn_single_cell"]
 
 def create_embedding(vocab_size,
                      embedding_dim,

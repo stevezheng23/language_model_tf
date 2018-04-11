@@ -7,17 +7,18 @@ import tensorflow as tf
 from util.default_util import *
 from util.representation_util import *
 
-__all__ = ["TrainResult", "EvaluateResult", "LanguageModel"]
+__all__ = ["TrainResult", "EvaluateResult", "InferResult", "LanguageModel"]
 
 class TrainResult(collections.namedtuple("TrainResult",
     ("loss", "learning_rate", "global_step", "batch_size", "summary"))):
     pass
 
-class EvaluateResult(collections.namedtuple("EvaluateResult", ("loss", "batch_size", "word_count"))):
+class EvaluateResult(collections.namedtuple("EvaluateResult",
+    ("loss", "word_count", "batch_size"))):
     pass
 
 class InferResult(collections.namedtuple("InferResult",
-    ("logit", "sample_id", "sample_word", "batch_size"))):
+    ("logit", "sample_id", "sample_word", "batch_size", "summary"))):
     pass
 
 class LanguageModel(object):
@@ -30,7 +31,6 @@ class LanguageModel(object):
                  vocab_index,
                  vocab_inverted_index,
                  mode="train",
-                 pretrained_embedding=False,
                  scope="lm"):
         """initialize language model"""
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
@@ -42,7 +42,6 @@ class LanguageModel(object):
             self.vocab_index = vocab_index
             self.vocab_inverted_index = vocab_inverted_index
             self.mode = mode
-            self.pretrained_embedding = pretrained_embedding
             self.scope = scope
             
             self.num_gpus = self.hyperparams.device_num_gpus
@@ -62,14 +61,16 @@ class LanguageModel(object):
             self.input_embedding = input_embedding
             self.embedding_placeholder = embedding_placeholder
             
-            if self.mode == "eval" or self.mode == "infer":
+            if self.mode == "infer":
+                self.input_data_placeholder = self.data_pipeline.text_data_placeholder
+                self.batch_size_placeholder = self.data_pipeline.batch_size_placeholder
+                
                 sample_id, sample_word = self._generate_prediction(logit)
-                self.eval_logit = logit
-                self.eval_sample_id = sample_id
-                self.eval_sample_word = sample_word
                 self.infer_logit = logit
                 self.infer_sample_id = sample_id
                 self.infer_sample_word = sample_word
+                
+                self.infer_summary = self._get_infer_summary()
             
             if self.mode == "train" or self.mode == "eval":
                 logit_length = self.data_pipeline.text_output_length
@@ -112,11 +113,12 @@ class LanguageModel(object):
                          input_data):
         """build embedding layer for language model"""
         embed_dim = self.hyperparams.model_embed_dim
+        pretrained_embedding = self.hyperparams.model_pretrained_embedding
         
         with tf.variable_scope("embedding", reuse=tf.AUTO_REUSE):
             self.logger.log_print("# create embedding for language model")
             embedding, embedding_placeholder = create_embedding(self.vocab_size,
-                embed_dim, self.pretrained_embedding)
+                embed_dim, pretrained_embedding)
             input_embedding = tf.nn.embedding_lookup(embedding, input_data)
             
             return input_embedding, embedding_placeholder
@@ -177,7 +179,7 @@ class LanguageModel(object):
     def _build_decoder(self,
                        decoder_input):
         """build decoder layer for language model"""
-        projection_activation = self.hyperparams.model_projection_activation
+        projection_activation = self.hyperparams.model_decoder_projection_activation
         projection_activation_func = create_activation_function(projection_activation)
         
         with tf.variable_scope("decoder", reuse=tf.AUTO_REUSE):
@@ -287,7 +289,19 @@ class LanguageModel(object):
     def _generate_prediction(self,
                              logit):
         """generate prediction"""
-        sample_id = tf.argmax(logit, axis=-1)
+        prediction_type = self.hyperparams.model_decoder_prediction_type
+        
+        if prediction_type == "max":
+            sample_id = tf.argmax(logit, axis=-1)
+        elif prediction_type == "sample":
+            logit_shape = tf.shape(logit)
+            batch_size, max_length, dim_size = logit_shape[0], logit_shape[1], logit_shape[2]
+            logit_reshaped = tf.reshape(logit, shape=[-1, dim_size])
+            logit_sampled = tf.multinomial(tf.log(logit_reshaped), num_samples=1)
+            sample_id = tf.reshape(logit_sampled, shape=[batch_size, max_length])
+        else:
+            raise ValueError("unsupported prediction type {0}".format(prediction_type))
+        
         sample_word = self.vocab_inverted_index.lookup(sample_id)
         
         return sample_id, sample_word
@@ -301,7 +315,9 @@ class LanguageModel(object):
               sess,
               embedding):
         """train language model"""
-        if self.pretrained_embedding == True:
+        pretrained_embedding = self.hyperparams.model_pretrained_embedding
+        
+        if pretrained_embedding == True:
             _, loss, learning_rate, global_step, batch_size, summary = sess.run([self.update_model,
                 self.train_loss, self.learning_rate, self.global_step, self.batch_size, self.train_summary],
                 feed_dict={self.embedding_placeholder: embedding})
@@ -316,28 +332,36 @@ class LanguageModel(object):
                  sess,
                  embedding):
         """evaluate language model"""
-        if self.pretrained_embedding == True:
-            loss, batch_size, word_count = sess.run([self.eval_loss, self.batch_size, self.word_count],
+        pretrained_embedding = self.hyperparams.model_pretrained_embedding
+        
+        if pretrained_embedding == True:
+            loss, word_count, batch_size = sess.run([self.eval_loss, self.word_count, self.batch_size],
                 feed_dict={self.embedding_placeholder: embedding})
         else:
-            loss, batch_size, word_count = sess.run([self.eval_loss, self.batch_size, self.word_count])
+            loss, word_count, batch_size = sess.run([self.eval_loss, self.word_count, self.batch_size])
         
-        return EvaluateResult(loss=loss, batch_size=batch_size, word_count=word_count)
+        return EvaluateResult(loss=loss, word_count=word_count, batch_size=batch_size)
+    
+    def _get_infer_summary(self):
+        """get infer summary"""
+        return tf.no_op()
     
     def infer(self,
               sess,
               embedding):
         """infer language model"""
-        if self.pretrained_embedding == True:
-            logit, sample_id, sample_word, batch_size = sess.run([self.infer_logit,
-                self.infer_sample_id, self.infer_sample_word, self.batch_size],
+        pretrained_embedding = self.hyperparams.model_pretrained_embedding
+        
+        if pretrained_embedding == True:
+            logit, sample_id, sample_word, batch_size, summary = sess.run([self.infer_logit,
+                self.infer_sample_id, self.infer_sample_word, self.batch_size, self.infer_summary],
                 feed_dict={self.embedding_placeholder: embedding})
         else:
-            logit, sample_id, sample_word, batch_size = sess.run([self.infer_logit,
-                self.infer_sample_id, self.infer_sample_word, self.batch_size])
+            logit, sample_id, sample_word, batch_size, summary = sess.run([self.infer_logit,
+                self.infer_sample_id, self.infer_sample_word, self.batch_size, self.infer_summary])
         
         return InferResult(logit=logit, sample_id=sample_id,
-            sample_word=sample_word, batch_size=batch_size)
+            sample_word=sample_word, batch_size=batch_size, summary=summary)
     
     def save(self,
              sess,
