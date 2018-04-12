@@ -21,8 +21,8 @@ class InferResult(collections.namedtuple("InferResult",
     ("logit", "sample_id", "sample_word", "batch_size", "summary"))):
     pass
 
-class LanguageModel(object):
-    """language model"""
+class LanguageModelBidirectional(object):
+    """bi-directional language model"""
     def __init__(self,
                  logger,
                  hyperparams,
@@ -31,8 +31,8 @@ class LanguageModel(object):
                  vocab_index,
                  vocab_inverted_index,
                  mode="train",
-                 scope="lm"):
-        """initialize language model"""
+                 scope="bilm"):
+        """initialize bi-directional language model"""
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             self.logger = logger
             self.hyperparams = hyperparams
@@ -54,8 +54,8 @@ class LanguageModel(object):
             text_input_length = self.data_pipeline.text_input_length
             self.batch_size = tf.size(text_input_length)
             
-            """build graph for language model"""
-            self.logger.log_print("# build graph for language model")
+            """build graph for bi-directional language model"""
+            self.logger.log_print("# build graph for bi-directional language model")
             (logit, encoder_layer_output, encoder_layer_final_state,
                 input_embedding, embedding_placeholder) = self._build_graph(text_input, text_input_length)
             self.input_embedding = input_embedding
@@ -111,12 +111,12 @@ class LanguageModel(object):
     
     def _build_embedding(self,
                          input_data):
-        """build embedding layer for language model"""
+        """build embedding layer for bi-directional language model"""
         embed_dim = self.hyperparams.model_embed_dim
         pretrained_embedding = self.hyperparams.model_pretrained_embedding
         
         with tf.variable_scope("embedding", reuse=tf.AUTO_REUSE):
-            self.logger.log_print("# create embedding for language model")
+            self.logger.log_print("# create embedding for bi-directional language model")
             embedding, embedding_placeholder = create_embedding(self.vocab_size,
                 embed_dim, pretrained_embedding)
             input_embedding = tf.nn.embedding_lookup(embedding, input_data)
@@ -127,7 +127,7 @@ class LanguageModel(object):
                          layer_input,
                          layer_input_length,
                          layer_id):
-        """build rnn layer for language model"""
+        """build rnn layer for bi-directional language model"""
         encoder_type = self.hyperparams.model_encoder_type
         unit_dim = self.hyperparams.model_encoder_unit_dim
         unit_type = self.hyperparams.model_encoder_unit_type
@@ -142,7 +142,7 @@ class LanguageModel(object):
                 cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
                     forget_bias, residual_connect, drop_out, device_spec)
                 layer_output, layer_final_state = tf.nn.dynamic_rnn(cell=cell, inputs=layer_input,
-                    sequence_length=layer_input_length, dtype=tf.float32, scope="")
+                    sequence_length=layer_input_length, dtype=tf.float32)
             elif encoder_type == "bi":
                 fwd_cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
                     forget_bias, residual_connect, drop_out, device_spec)
@@ -159,7 +159,7 @@ class LanguageModel(object):
     def _build_encoder(self,
                        encoder_input,
                        encoder_input_length):
-        """build encoder layer for language model"""
+        """build encoder layer for bi-directional language model"""
         num_layer = self.hyperparams.model_encoder_num_layer
         
         with tf.variable_scope("encoder", reuse=tf.AUTO_REUSE):
@@ -178,7 +178,7 @@ class LanguageModel(object):
         
     def _build_decoder(self,
                        decoder_input):
-        """build decoder layer for language model"""
+        """build decoder layer for bi-directional language model"""
         projection_activation = self.hyperparams.model_decoder_projection_activation
         projection_activation_func = create_activation_function(projection_activation)
         
@@ -193,15 +193,15 @@ class LanguageModel(object):
     def _build_graph(self,
                      input_data,
                      input_length):
-        """build graph for language model"""       
-        self.logger.log_print("# build embedding layer for language model")
+        """build graph for bi-directional language model"""       
+        self.logger.log_print("# build embedding layer for bi-directional language model")
         input_embedding, embedding_placeholder = self._build_embedding(input_data)
         
-        self.logger.log_print("# build encoder layer for language model")
+        self.logger.log_print("# build encoder layer for bi-directional language model")
         encoder_layer_output, encoder_layer_final_state = self._build_encoder(input_embedding, input_length)
         encoder_output = encoder_layer_output[-1]
         
-        self.logger.log_print("# build decoder layer for language model")
+        self.logger.log_print("# build decoder layer for bi-directional language model")
         decoder_output = self._build_decoder(encoder_output)
         
         return decoder_output, encoder_layer_output, encoder_layer_final_state, input_embedding, embedding_placeholder
@@ -314,7 +314,7 @@ class LanguageModel(object):
     def train(self,
               sess,
               embedding):
-        """train language model"""
+        """train bi-directional language model"""
         pretrained_embedding = self.hyperparams.model_pretrained_embedding
         
         if pretrained_embedding == True:
@@ -331,7 +331,7 @@ class LanguageModel(object):
     def evaluate(self,
                  sess,
                  embedding):
-        """evaluate language model"""
+        """evaluate bi-directional language model"""
         pretrained_embedding = self.hyperparams.model_pretrained_embedding
         
         if pretrained_embedding == True:
@@ -349,7 +349,7 @@ class LanguageModel(object):
     def infer(self,
               sess,
               embedding):
-        """infer language model"""
+        """infer bi-directional language model"""
         pretrained_embedding = self.hyperparams.model_pretrained_embedding
         
         if pretrained_embedding == True:
@@ -366,12 +366,12 @@ class LanguageModel(object):
     def save(self,
              sess,
              global_step):
-        """save checkpoint for language model"""
+        """save checkpoint for bi-directional language model"""
         self.ckpt_saver.save(sess, self.ckpt_name, global_step=global_step)
     
     def restore(self,
                 sess):
-        """restore language model from checkpoint"""
+        """restore bi-directional language model from checkpoint"""
         ckpt_file = tf.train.latest_checkpoint(self.ckpt_dir)
         if ckpt_file is not None:
             self.ckpt_saver.restore(sess, ckpt_file)
