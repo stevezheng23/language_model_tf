@@ -79,7 +79,7 @@ def create_lm_pipeline(text_file,
     dataset = dataset.map(lambda text: text[:max_length])
     
     dataset = dataset.map(lambda text: tf.cast(vocab_index.lookup(text), tf.int32))
-    dataset = dataset.map(lambda text: (tf.concat((text, [eos_id]), 0), tf.concat(([sos_id], text), 0)))
+    dataset = dataset.map(lambda text: (tf.concat(([sos_id], text), 0), tf.concat((text, [eos_id]), 0)))
     dataset = dataset.map(lambda text_input, text_output:
         (text_input, text_output, tf.size(text_input), tf.size(text_output)))
     

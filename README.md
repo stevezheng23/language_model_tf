@@ -1,2 +1,2 @@
-# Word Representation
-Word Representation model in Tensorflow
+# Language Model
+Language Model in Tensorflow

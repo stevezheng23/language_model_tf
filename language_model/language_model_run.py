@@ -70,21 +70,29 @@ def decode_eval(logger,
     
     sample_input = []
     sample_output = []
+    sample_reference = []
     for index in range(len(sample_input_data)):
         input_data = sample_input_data[index].split(' ')
         output_data = infer_result.sample_word[index]
         sample_pos = np.random.randint(0, len(input_data)-1, size=1)[0]
-        if model_type == "uni":
+        if model_type == "forward_only":
             sample_input.append(' '.join(input_data[:sample_pos] + ['(?)']))
-            sample_output.append(' '.join(input_data[:sample_pos] + [output_data[sample_pos].decode("utf-8")]))
-        elif model_type == "bi":
+            sample_output.append(' '.join(
+                input_data[:sample_pos] + ['({0})'.format(output_data[sample_pos].decode("utf-8"))]))
+            sample_reference.append(' '.join(input_data[:sample_pos] + ['({0})'.format(input_data[sample_pos])]))
+        elif model_type == "bi_directional":
             sample_input.append(' '.join(input_data[:sample_pos] + ['(?)'] + input_data[sample_pos+1:]))
-            sample_output.append(' '.join(input_data[:sample_pos] + [output_data[sample_pos].decode("utf-8")] + input_data[sample_pos+1:]))
+            sample_output.append(' '.join(
+                input_data[:sample_pos] + ['({0})'.format(output_data[sample_pos].decode("utf-8"))] + input_data[sample_pos+1:]))
+            sample_reference.append(' '.join(
+                input_data[:sample_pos] + ['({0})'.format(input_data[sample_pos])] + input_data[sample_pos+1:]))
         else:
             sample_input.append(' '.join(input_data))
             sample_output.append(' '.join(output_data))
+            sample_reference.append(' '.join(input_data))
     
-    decode_eval_result = DecodeEvalLog(sample_input=sample_input, sample_output=sample_output)
+    decode_eval_result = DecodeEvalLog(sample_input=sample_input,
+        sample_output=sample_output, sample_reference=sample_reference)
     logger.update_decode_eval(decode_eval_result)
     logger.check_decode_eval()
 
@@ -145,7 +153,7 @@ def train(logger,
                         eval_model.embedding, global_step)
                     decode_eval(eval_logger, infer_summary_writer, infer_sess, infer_model,
                         infer_model.input_data, infer_model.embedding, global_step, hyperparams.train_infer_batch_size,
-                        hyperparams.train_random_seed, hyperparams.model_encoder_type)
+                        hyperparams.train_random_seed, hyperparams.model_type)
             except tf.errors.OutOfRangeError:
                 train_logger.check()
                 train_model.model.save(train_sess, global_step)
@@ -153,7 +161,7 @@ def train(logger,
                     eval_model.embedding, global_step)
                 decode_eval(eval_logger, infer_summary_writer, infer_sess, infer_model,
                     infer_model.input_data, infer_model.embedding, global_step, hyperparams.train_infer_batch_size,
-                    hyperparams.train_random_seed, hyperparams.model_encoder_type)
+                    hyperparams.train_random_seed, hyperparams.model_type)
                 break
 
     train_summary_writer.close_writer()

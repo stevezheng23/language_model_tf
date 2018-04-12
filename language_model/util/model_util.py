@@ -4,9 +4,10 @@ import numpy as np
 import tensorflow as tf
 
 from model.language_model import *
+from model.language_model_bidirectional import *
 from util.default_util import *
 from util.data_util import *
-from util.representation_util import *
+from util.language_model_util import *
 
 __all__ = ["TrainModel", "EvalModel", "create_train_model", "create_eval_model",
            "create_infer_model", "get_model_creator", "init_model", "load_model"]
@@ -93,10 +94,12 @@ def create_infer_model(logger,
             input_data=input_data, embedding=embedding_data)
 
 def get_model_creator(model_type):
-    if model_type == "vanilla":
+    if model_type == "forward_only":
         model_creator = LanguageModel
+    elif model_type == "bi_directional":
+        model_creator = LanguageModelBidirectional
     else:
-        raise ValueError("can not create model with unsupported model type {0}".format(hyperparams.model_type))
+        raise ValueError("can not create model with unsupported model type {0}".format(model_type))
     
     return model_creator
 
