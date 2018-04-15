@@ -61,6 +61,7 @@ def create_default_hyperparams():
         model_encoder_residual_connect=False,
         model_encoder_forget_bias=1.0,
         model_encoder_dropout=0.1,
+        model_encoder_encoding="top",
         model_decoder_projection_activation="tanh",
         model_decoder_prediction_type="sample",
         device_num_gpus=1,

@@ -126,7 +126,8 @@ class LanguageModel(object):
     def _build_rnn_layer(self,
                          layer_input,
                          layer_input_length,
-                         layer_id):
+                         layer_id,
+                         layer_direction):
         """build rnn layer for language model"""
         unit_dim = self.hyperparams.model_encoder_unit_dim
         unit_type = self.hyperparams.model_encoder_unit_type
@@ -136,7 +137,7 @@ class LanguageModel(object):
         drop_out = self.hyperparams.model_encoder_dropout
         device_spec = get_device_spec(self.default_gpu_id+layer_id, self.num_gpus)
         
-        with tf.variable_scope("rnn/layer_{0}".format(layer_id), reuse=tf.AUTO_REUSE):
+        with tf.variable_scope("rnn/layer_{0}/{1}".format(layer_id, layer_direction), reuse=tf.AUTO_REUSE):
             cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
                 forget_bias, residual_connect, drop_out, device_spec)
             layer_output, layer_final_state = tf.nn.dynamic_rnn(cell=cell, inputs=layer_input,
@@ -157,13 +158,28 @@ class LanguageModel(object):
             encoder_layer_output = []
             encoder_layer_final_state = []
             for i in range(num_layer):
-                layer_output, layer_final_state = self._build_rnn_layer(layer_input, layer_input_length, i)
+                layer_output, layer_final_state = self._build_rnn_layer(
+                    layer_input, layer_input_length, i, "forward")
                 encoder_layer_output.append(layer_output)
                 encoder_layer_final_state.append(layer_final_state)
                 layer_input = layer_output
             
             return encoder_layer_output, encoder_layer_final_state
+    
+    def _convert_encoder_output(self,
+                                encoder_layer_output):
+        """convert encoder output for language model"""
+        encoding_type = self.hyperparams.model_encoder_encoding
         
+        if encoding_type == "top":
+            encoder_output = encoder_layer_output[-1]
+        elif encoding_type == "average":
+            encoder_output = tf.reduce_mean(encoder_layer_output, 0)
+        else:
+            raise ValueError("unsupported encoding type {0}".format(encoding_type))
+        
+        return encoder_output
+    
     def _build_decoder(self,
                        decoder_input):
         """build decoder layer for language model"""
@@ -187,7 +203,7 @@ class LanguageModel(object):
         
         self.logger.log_print("# build encoder layer for language model")
         encoder_layer_output, encoder_layer_final_state = self._build_encoder(input_embedding, input_length)
-        encoder_output = encoder_layer_output[-1]
+        encoder_output = self._convert_encoder_output(encoder_layer_output)
         
         self.logger.log_print("# build decoder layer for language model")
         decoder_output = self._build_decoder(encoder_output)
