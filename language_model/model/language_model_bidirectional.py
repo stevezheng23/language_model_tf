@@ -4,24 +4,14 @@ import os.path
 import numpy as np
 import tensorflow as tf
 
+from model.language_model import *
+
 from util.default_util import *
-from util.representation_util import *
+from util.language_model_util import *
 
-__all__ = ["TrainResult", "EvaluateResult", "InferResult", "LanguageModel"]
+__all__ = ["LanguageModelBidirectional"]
 
-class TrainResult(collections.namedtuple("TrainResult",
-    ("loss", "learning_rate", "global_step", "batch_size", "summary"))):
-    pass
-
-class EvaluateResult(collections.namedtuple("EvaluateResult",
-    ("loss", "word_count", "batch_size"))):
-    pass
-
-class InferResult(collections.namedtuple("InferResult",
-    ("logit", "sample_id", "sample_word", "batch_size", "summary"))):
-    pass
-
-class LanguageModelBidirectional(object):
+class LanguageModelBidirectional(LanguageModel):
     """bi-directional language model"""
     def __init__(self,
                  logger,
@@ -33,6 +23,11 @@ class LanguageModelBidirectional(object):
                  mode="train",
                  scope="bilm"):
         """initialize bi-directional language model"""
+        super(LanguageModelBidirectional, self).__init__(logger=logger,
+            hyperparams=hyperparams, data_pipeline=data_pipeline,
+            vocab_size=vocab_size, vocab_index=vocab_index,
+            vocab_inverted_index=vocab_inverted_index, mode=mode, scope=scope)
+        
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             self.logger = logger
             self.hyperparams = hyperparams
@@ -126,9 +121,9 @@ class LanguageModelBidirectional(object):
     def _build_rnn_layer(self,
                          layer_input,
                          layer_input_length,
-                         layer_id):
+                         layer_id,
+                         layer_direction):
         """build rnn layer for bi-directional language model"""
-        encoder_type = self.hyperparams.model_encoder_type
         unit_dim = self.hyperparams.model_encoder_unit_dim
         unit_type = self.hyperparams.model_encoder_unit_type
         hidden_activation = self.hyperparams.model_encoder_hidden_activation
@@ -137,24 +132,46 @@ class LanguageModelBidirectional(object):
         drop_out = self.hyperparams.model_encoder_dropout
         device_spec = get_device_spec(self.default_gpu_id+layer_id, self.num_gpus)
         
-        with tf.variable_scope("rnn/layer_{0}".format(layer_id), reuse=tf.AUTO_REUSE):
-            if encoder_type == "uni":
-                cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
-                    forget_bias, residual_connect, drop_out, device_spec)
-                layer_output, layer_final_state = tf.nn.dynamic_rnn(cell=cell, inputs=layer_input,
-                    sequence_length=layer_input_length, dtype=tf.float32)
-            elif encoder_type == "bi":
-                fwd_cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
-                    forget_bias, residual_connect, drop_out, device_spec)
-                bwd_cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
-                    forget_bias, residual_connect, drop_out, device_spec)
-                layer_output, layer_final_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=fwd_cell, cell_bw=bwd_cell,
-                    inputs=layer_input, sequence_length=layer_input_length, dtype=tf.float32)
-                layer_output = tf.concat(layer_output, -1)
-            else:
-                raise ValueError("unsupported encoder type {0}".format(encoder_type))
+        with tf.variable_scope("rnn/layer_{0}/{1}".format(layer_id, layer_direction), reuse=tf.AUTO_REUSE):
+            cell = create_rnn_single_cell(unit_dim, unit_type, hidden_activation,
+                forget_bias, residual_connect, drop_out, device_spec)
+            layer_output, layer_final_state = tf.nn.dynamic_rnn(cell=cell, inputs=layer_input,
+                sequence_length=layer_input_length, dtype=tf.float32)
         
         return layer_output, layer_final_state
+    
+    def _convert_layer_input(self,
+                             layer_input,
+                             layer_input_length):
+        """convert encoder input for bi-directional language model"""
+        """convert encoder input to forward input"""
+        fwd_layer_input = tf.reverse_sequence(layer_input, layer_input_length, seq_axis=1)
+        fwd_layer_input = fwd_layer_input[:,1:,:]
+        fwd_layer_input_length = layer_input_length - 1
+        fwd_layer_input = tf.reverse_sequence(fwd_layer_input, fwd_layer_input_length, seq_axis=1)
+        
+        """convert encoder input to backward input"""
+        bwd_layer_input = layer_input[:,1:,:]
+        bwd_layer_input_length = layer_input_length - 1
+        bwd_layer_input = tf.reverse_sequence(bwd_layer_input, bwd_layer_input_length, seq_axis=1)
+        
+        return fwd_layer_input, bwd_layer_input, fwd_layer_input_length, bwd_layer_input_length
+    
+    def _convert_layer_output(self,
+                              fwd_layer_output,
+                              bwd_layer_output,
+                              fwd_layer_output_length,
+                              bwd_layer_output_length):
+        """convert encoder output for bi-directional langauge model"""
+        padding = tf.constant([[0,0],[1,0],[0,0]])
+        fwd_layer_output = tf.pad(fwd_layer_output, padding, 'CONSTANT')
+        fwd_layer_output_length = fwd_layer_output_length + 1
+        bwd_layer_output = tf.pad(bwd_layer_output, padding, 'CONSTANT')
+        bwd_layer_output_length = bwd_layer_output_length + 1
+        bwd_layer_output = tf.reverse_sequence(bwd_layer_output, bwd_layer_output_length, seq_axis=1)
+        layer_output = tf.concat([fwd_layer_output, bwd_layer_output], -1)
+        
+        return layer_output
     
     def _build_encoder(self,
                        encoder_input,
@@ -164,18 +181,46 @@ class LanguageModelBidirectional(object):
         
         with tf.variable_scope("encoder", reuse=tf.AUTO_REUSE):
             self.logger.log_print("# create hidden layer for encoder")
-            layer_input = encoder_input
-            layer_input_length = encoder_input_length
+            """convert layer input for encoder"""
+            (fwd_layer_input, bwd_layer_input, fwd_layer_input_length,
+                bwd_layer_input_length) = self._convert_layer_input(encoder_input, encoder_input_length)
+            
             encoder_layer_output = []
             encoder_layer_final_state = []
             for i in range(num_layer):
-                layer_output, layer_final_state = self._build_rnn_layer(layer_input, layer_input_length, i)
+                """build forward layer for encoder"""
+                fwd_layer_output, fwd_layer_final_state = self._build_rnn_layer(
+                    fwd_layer_input, fwd_layer_input_length, i, "forward")
+                fwd_layer_input = fwd_layer_output
+                
+                """build backward layer for encoder"""
+                bwd_layer_output, bwd_layer_final_state = self._build_rnn_layer(
+                    bwd_layer_input, bwd_layer_input_length, i, "backward")
+                bwd_layer_input = bwd_layer_output
+                
+                """convert layer output & state for encoder"""
+                layer_output = self._convert_layer_output(fwd_layer_output, bwd_layer_output,
+                    fwd_layer_input_length, bwd_layer_input_length)
+                layer_final_state = tf.concat([fwd_layer_final_state, bwd_layer_final_state], -1)
                 encoder_layer_output.append(layer_output)
                 encoder_layer_final_state.append(layer_final_state)
-                layer_input = layer_output
             
             return encoder_layer_output, encoder_layer_final_state
+    
+    def _convert_encoder_output(self,
+                                encoder_layer_output):
+        """convert encoder output for bi-directional language model"""
+        encoding_type = self.hyperparams.model_encoder_encoding
         
+        if encoding_type == "top":
+            encoder_output = encoder_layer_output[-1]
+        elif encoding_type == "average":
+            encoder_output = tf.reduce_mean(encoder_layer_output, 0)
+        else:
+            raise ValueError("unsupported encoding type {0}".format(encoding_type))
+        
+        return encoder_output
+    
     def _build_decoder(self,
                        decoder_input):
         """build decoder layer for bi-directional language model"""
@@ -199,7 +244,7 @@ class LanguageModelBidirectional(object):
         
         self.logger.log_print("# build encoder layer for bi-directional language model")
         encoder_layer_output, encoder_layer_final_state = self._build_encoder(input_embedding, input_length)
-        encoder_output = encoder_layer_output[-1]
+        encoder_output = self._convert_encoder_output(encoder_layer_output)
         
         self.logger.log_print("# build decoder layer for bi-directional language model")
         decoder_output = self._build_decoder(encoder_output)

@@ -36,9 +36,10 @@ def create_train_model(logger,
             hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_pretrained_embedding)
     
         logger.log_print("# create train data pipeline")
-        data_pipeline = create_lm_pipeline(hyperparams.data_train_file, vocab_index,
-            hyperparams.data_max_length, hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad,
-            hyperparams.train_batch_size, hyperparams.train_random_seed, hyperparams.train_enable_shuffle)
+        data_pipeline = create_data_pipeline(hyperparams.data_train_file, vocab_index,
+            hyperparams.data_max_length, hyperparams.data_sos, hyperparams.data_eos,
+            hyperparams.data_pad, hyperparams.train_batch_size, hyperparams.train_random_seed,
+            hyperparams.train_enable_shuffle, hyperparams.model_type)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
@@ -59,9 +60,9 @@ def create_eval_model(logger,
             hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_pretrained_embedding)
     
         logger.log_print("# create eval data pipeline")
-        data_pipeline = create_lm_pipeline(hyperparams.data_eval_file, vocab_index,
+        data_pipeline = create_data_pipeline(hyperparams.data_eval_file, vocab_index,
             hyperparams.data_max_length, hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad,
-            hyperparams.train_eval_batch_size, hyperparams.train_random_seed, False)
+            hyperparams.train_eval_batch_size, hyperparams.train_random_seed, False, hyperparams.model_type)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
@@ -82,8 +83,8 @@ def create_infer_model(logger,
             hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_pretrained_embedding)
     
         logger.log_print("# create infer data pipeline")
-        data_pipeline = create_lm_infer_pipeline(vocab_index, hyperparams.data_max_length,
-            hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad)
+        data_pipeline = create_infer_data_pipeline(vocab_index, hyperparams.data_max_length,
+            hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_type)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
