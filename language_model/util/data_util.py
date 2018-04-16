@@ -5,7 +5,7 @@ import os.path
 import numpy as np
 import tensorflow as tf
 
-__all__ = ["LanguageModelPipeline", "create_infer_data_pipeline", "create_data_pipeline",
+__all__ = ["LanguageModelPipeline", "create_dynamic_data_pipeline", "create_data_pipeline",
            "load_pretrained_embedding", "create_embedding_file", "convert_embedding",
            "load_vocab_table", "create_vocab_table", "create_vocab_file",
            "load_input", "prepare_data"]
@@ -15,28 +15,28 @@ class LanguageModelPipeline(collections.namedtuple("LanguageModelPipeline",
      "text_data_placeholder", "batch_size_placeholder"))):
     pass
 
-def create_infer_data_pipeline(vocab_index,
-                               max_length,
-                               sos,
-                               eos,
-                               pad,
-                               model_type):
-    """create language model infer data pipeline based on config"""
+def create_dynamic_data_pipeline(vocab_index,
+                                 max_length,
+                                 sos,
+                                 eos,
+                                 pad,
+                                 model_type):
+    """create language model dynamic data pipeline based on config"""
     if model_type == "forward_only":
-        data_pipeline = create_infer_lm_pipeline(vocab_index, max_length, sos, eos, pad)
+        data_pipeline = create_dynamic_lm_pipeline(vocab_index, max_length, sos, eos, pad)
     elif model_type == "bi_directional":
-        data_pipeline = create_infer_bilm_pipeline(vocab_index, max_length, sos, eos, pad)
+        data_pipeline = create_dynamic_bilm_pipeline(vocab_index, max_length, sos, eos, pad)
     else:
         raise ValueError("can not create model with unsupported model type {0}".format(model_type))
     
     return data_pipeline
 
-def create_infer_bilm_pipeline(vocab_index,
-                               max_length,
-                               sos,
-                               eos,
-                               pad):
-    """create language model infer data pipeline based on config"""
+def create_dynamic_bilm_pipeline(vocab_index,
+                                 max_length,
+                                 sos,
+                                 eos,
+                                 pad):
+    """create language model dynamic data pipeline based on config"""
     sos_id = tf.cast(vocab_index.lookup(tf.constant(sos)), tf.int32)
     eos_id = tf.cast(vocab_index.lookup(tf.constant(eos)), tf.int32)
     pad_id = tf.cast(vocab_index.lookup(tf.constant(pad)), tf.int32)
@@ -69,12 +69,12 @@ def create_infer_bilm_pipeline(vocab_index,
         text_input=input_id, text_output=None, text_input_length=input_len, text_output_length=None,
         text_data_placeholder=input_data_placeholder, batch_size_placeholder=batch_size_placeholder)
 
-def create_infer_lm_pipeline(vocab_index,
-                             max_length,
-                             sos,
-                             eos,
-                             pad):
-    """create language model infer data pipeline based on config"""
+def create_dynamic_lm_pipeline(vocab_index,
+                               max_length,
+                               sos,
+                               eos,
+                               pad):
+    """create language model dynamic data pipeline based on config"""
     sos_id = tf.cast(vocab_index.lookup(tf.constant(sos)), tf.int32)
     eos_id = tf.cast(vocab_index.lookup(tf.constant(eos)), tf.int32)
     pad_id = tf.cast(vocab_index.lookup(tf.constant(pad)), tf.int32)

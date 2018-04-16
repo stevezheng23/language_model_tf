@@ -9,8 +9,9 @@ from util.default_util import *
 from util.data_util import *
 from util.language_model_util import *
 
-__all__ = ["TrainModel", "EvalModel", "create_train_model", "create_eval_model",
-           "create_infer_model", "get_model_creator", "init_model", "load_model"]
+__all__ = ["TrainModel", "EvalModel", "InferModel", "EncodeModel",
+           "create_train_model", "create_eval_model", "create_infer_model", "create_encode_model",
+           "get_model_creator", "init_model", "load_model"]
 
 class TrainModel(collections.namedtuple("TrainModel",
     ("graph", "model", "data_pipeline", "embedding"))):
@@ -21,6 +22,10 @@ class EvalModel(collections.namedtuple("EvalModel",
     pass
 
 class InferModel(collections.namedtuple("InferModel",
+    ("graph", "model", "data_pipeline", "input_data", "embedding"))):
+    pass
+
+class EncodeModel(collections.namedtuple("EncodeModel",
     ("graph", "model", "data_pipeline", "input_data", "embedding"))):
     pass
 
@@ -83,7 +88,7 @@ def create_infer_model(logger,
             hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_pretrained_embedding)
     
         logger.log_print("# create infer data pipeline")
-        data_pipeline = create_infer_data_pipeline(vocab_index, hyperparams.data_max_length,
+        data_pipeline = create_dynamic_data_pipeline(vocab_index, hyperparams.data_max_length,
             hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_type)
         
         model_creator = get_model_creator(hyperparams.model_type)
@@ -92,6 +97,29 @@ def create_infer_model(logger,
             mode="infer", scope=hyperparams.model_scope)
         
         return InferModel(graph=graph, model=model, data_pipeline=data_pipeline,
+            input_data=input_data, embedding=embedding_data)
+
+def create_encode_model(logger,
+                        hyperparams):
+    graph = tf.Graph()
+    with graph.as_default():
+        logger.log_print("# prepare encoding data")
+        (input_data, embedding_data, vocab_size, vocab_index,
+            vocab_inverted_index) = prepare_data(logger, hyperparams.data_eval_file,
+            hyperparams.data_vocab_file, hyperparams.data_embedding_file, hyperparams.data_full_embedding_file,
+            hyperparams.data_vocab_size, hyperparams.model_embed_dim, hyperparams.data_unk, hyperparams.data_sos,
+            hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_pretrained_embedding)
+    
+        logger.log_print("# create encoding data pipeline")
+        data_pipeline = create_dynamic_data_pipeline(vocab_index, hyperparams.data_max_length,
+            hyperparams.data_sos, hyperparams.data_eos, hyperparams.data_pad, hyperparams.model_type)
+        
+        model_creator = get_model_creator(hyperparams.model_type)
+        model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
+            vocab_size=vocab_size, vocab_index=vocab_index, vocab_inverted_index=vocab_inverted_index,
+            mode="encode", scope=hyperparams.model_scope)
+        
+        return EncodeModel(graph=graph, model=model, data_pipeline=data_pipeline,
             input_data=input_data, embedding=embedding_data)
 
 def get_model_creator(model_type):

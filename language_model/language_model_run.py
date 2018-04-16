@@ -12,6 +12,7 @@ from util.train_logger import *
 from util.eval_logger import *
 from util.debug_logger import *
 from util.summary_writer import *
+from util.result_writer import *
 
 def add_arguments(parser):
     parser.add_argument("--mode", help="mode to run", required=True)
@@ -197,6 +198,56 @@ def evaluate(logger,
     eval_summary_writer.close_writer()
     logger.log_print("##### finish evaluation #####")
 
+def encode(logger,
+           hyperparams):
+    logger.log_print("##### create encode model #####")
+    encode_model = create_encode_model(logger, hyperparams)
+    
+    config_proto = get_config_proto(hyperparams.device_log_device_placement,
+        hyperparams.device_allow_soft_placement, hyperparams.device_allow_growth,
+        hyperparams.device_per_process_gpu_memory_fraction)
+    
+    encode_sess = tf.Session(config=config_proto, graph=encode_model.graph)
+    
+    logger.log_print("##### start encoding #####")
+    summary_output_dir = hyperparams.train_summary_output_dir
+    if not tf.gfile.Exists(summary_output_dir):
+        tf.gfile.MakeDirs(summary_output_dir)
+    
+    encode_summary_writer = SummaryWriter(encode_model.graph, os.path.join(summary_output_dir, "encode"))
+    result_writer = ResultWriter(hyperparams.data_result_output_dir)
+    
+    init_model(encode_sess, encode_model)
+    load_model(encode_sess, encode_model)
+    encode_sess.run(encode_model.data_pipeline.initializer,
+        feed_dict={encode_model.model.input_data_placeholder: encode_model.input_data,
+            encode_model.model.batch_size_placeholder: hyperparams.train_eval_batch_size})
+    
+    encoding = []
+    while True:
+        try:
+            encode_result = encode_model.model.encode(encode_sess, encode_model.embedding)
+            batch_size = encode_result.batch_size
+            batch_encoding = [(encode_result.encoder_output_length[i].tolist(),
+                encode_result.encoder_output[i,:encode_result.encoder_output_length[i],:].tolist())
+                for i in range(batch_size)]
+            encoding.extend(batch_encoding)
+        except  tf.errors.OutOfRangeError:
+            break
+    
+    encoding_size = len(encoding)
+    encoding_sample = encode_model.input_data
+    encoding_length = [encoding[i][0] for i in range(encoding_size)]
+    encoding_vector = [encoding[i][1] for i in range(encoding_size)]
+    
+    encoding = [{ "sample": encoding_sample[i], "max_length": encoding_length[i], 
+        "encoding_type": hyperparams.model_encoder_encoding_type, "encoding_vector": encoding_vector[i] }
+        for i in range(encoding_size)]
+    result_writer.write_result(encoding, "encode", 0)
+    
+    encode_summary_writer.close_writer()
+    logger.log_print("##### finish encoding #####")
+
 def main(args):
     hyperparams = load_hyperparams(args.config)
     logger = DebugLogger(hyperparams.data_log_output_dir)
@@ -208,6 +259,8 @@ def main(args):
         train(logger, hyperparams)
     elif (args.mode == 'eval'):
         evaluate(logger, hyperparams)
+    elif (args.mode == 'encode'):
+        encode(logger, hyperparams)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

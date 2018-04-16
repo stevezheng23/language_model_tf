@@ -7,7 +7,7 @@ import tensorflow as tf
 from util.default_util import *
 from util.language_model_util import *
 
-__all__ = ["TrainResult", "EvaluateResult", "InferResult", "LanguageModel"]
+__all__ = ["TrainResult", "EvaluateResult", "InferResult", "EncodeResult", "LanguageModel"]
 
 class TrainResult(collections.namedtuple("TrainResult",
     ("loss", "learning_rate", "global_step", "batch_size", "summary"))):
@@ -19,6 +19,10 @@ class EvaluateResult(collections.namedtuple("EvaluateResult",
 
 class InferResult(collections.namedtuple("InferResult",
     ("logit", "sample_id", "sample_word", "batch_size", "summary"))):
+    pass
+
+class EncodeResult(collections.namedtuple("EncodeResult",
+    ("encoder_output", "encoder_output_length", "batch_size"))):
     pass
 
 class LanguageModel(object):
@@ -54,17 +58,26 @@ class LanguageModel(object):
             text_input_length = self.data_pipeline.text_input_length
             self.batch_size = tf.size(text_input_length)
             
-            """build graph for language model"""
-            self.logger.log_print("# build graph for language model")
-            (logit, encoder_layer_output, encoder_layer_final_state,
-                input_embedding, embedding_placeholder) = self._build_graph(text_input, text_input_length)
-            self.input_embedding = input_embedding
-            self.embedding_placeholder = embedding_placeholder
-            
-            if self.mode == "infer":
+            if self.mode == "encode" or self.mode == "infer":
                 self.input_data_placeholder = self.data_pipeline.text_data_placeholder
                 self.batch_size_placeholder = self.data_pipeline.batch_size_placeholder
-                
+            
+            """build graph for language model"""
+            self.logger.log_print("# build graph for language model")
+            if self.mode == "encode":
+                (encoder_output, _, _, input_embedding,
+                    embedding_placeholder) = self._build_encoding_graph(text_input, text_input_length)
+                self.encoder_output = encoder_output
+                self.encoder_output_length = text_input_length
+                self.input_embedding = input_embedding
+                self.embedding_placeholder = embedding_placeholder
+            else:
+                (logit, _, _, _, input_embedding,
+                    embedding_placeholder) = self._build_graph(text_input, text_input_length)
+                self.input_embedding = input_embedding
+                self.embedding_placeholder = embedding_placeholder
+            
+            if self.mode == "infer":
                 sample_id, sample_word = self._generate_prediction(logit)
                 self.infer_logit = logit
                 self.infer_sample_id = sample_id
@@ -150,13 +163,18 @@ class LanguageModel(object):
                        encoder_input_length):
         """build encoder layer for language model"""
         num_layer = self.hyperparams.model_encoder_num_layer
+        include_input = self.hyperparams.model_encoder_encoding_include_input
         
         with tf.variable_scope("encoder", reuse=tf.AUTO_REUSE):
             self.logger.log_print("# create hidden layer for encoder")
             layer_input = encoder_input
             layer_input_length = encoder_input_length
+            
             encoder_layer_output = []
             encoder_layer_final_state = []
+            if include_input == True:
+                encoder_layer_output.append(encoder_input)
+            
             for i in range(num_layer):
                 layer_output, layer_final_state = self._build_rnn_layer(
                     layer_input, layer_input_length, i, "forward")
@@ -169,10 +187,12 @@ class LanguageModel(object):
     def _convert_encoder_output(self,
                                 encoder_layer_output):
         """convert encoder output for language model"""
-        encoding_type = self.hyperparams.model_encoder_encoding
+        encoding_type = self.hyperparams.model_encoder_encoding_type
         
         if encoding_type == "top":
             encoder_output = encoder_layer_output[-1]
+        elif encoding_type == "bottom":
+            encoder_output = encoder_layer_output[0]
         elif encoding_type == "average":
             encoder_output = tf.reduce_mean(encoder_layer_output, 0)
         else:
@@ -194,6 +214,20 @@ class LanguageModel(object):
             
             return decoder_output
     
+    def _build_encoding_graph(self,
+                              input_data,
+                              input_length):
+        """build encoding graph for language model"""
+        self.logger.log_print("# build embedding layer for language model")
+        input_embedding, embedding_placeholder = self._build_embedding(input_data)
+        
+        self.logger.log_print("# build encoder layer for language model")
+        encoder_layer_output, encoder_layer_final_state = self._build_encoder(input_embedding, input_length)
+        encoder_output = self._convert_encoder_output(encoder_layer_output)
+        
+        return (encoder_output, encoder_layer_output, encoder_layer_final_state,
+            input_embedding, embedding_placeholder)
+    
     def _build_graph(self,
                      input_data,
                      input_length):
@@ -208,7 +242,8 @@ class LanguageModel(object):
         self.logger.log_print("# build decoder layer for language model")
         decoder_output = self._build_decoder(encoder_output)
         
-        return decoder_output, encoder_layer_output, encoder_layer_final_state, input_embedding, embedding_placeholder
+        return (decoder_output, encoder_output, encoder_layer_output,
+            encoder_layer_final_state, input_embedding, embedding_placeholder)
     
     def _compute_loss(self,
                       logit,
@@ -366,6 +401,23 @@ class LanguageModel(object):
         
         return InferResult(logit=logit, sample_id=sample_id,
             sample_word=sample_word, batch_size=batch_size, summary=summary)
+    
+    def encode(self,
+               sess,
+               embedding):
+        """encode language model"""
+        pretrained_embedding = self.hyperparams.model_pretrained_embedding
+        
+        if pretrained_embedding == True:
+            encoder_output, encoder_output_length, batch_size = sess.run([self.encoder_output,
+                self.encoder_output_length, self.batch_size],
+                feed_dict={self.embedding_placeholder: embedding})
+        else:
+            encoder_output, encoder_output_length, batch_size = sess.run([self.encoder_output,
+                self.encoder_output_length, self.batch_size])
+        
+        return EncodeResult(encoder_output=encoder_output,
+            encoder_output_length=encoder_output_length, batch_size=batch_size)
     
     def save(self,
              sess,
