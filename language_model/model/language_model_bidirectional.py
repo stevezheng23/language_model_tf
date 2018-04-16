@@ -60,15 +60,19 @@ class LanguageModelBidirectional(LanguageModel):
                        encoder_input_length):
         """build encoder layer for bi-directional language model"""
         num_layer = self.hyperparams.model_encoder_num_layer
+        include_input = self.hyperparams.model_encoder_encoding_include_input
         
         with tf.variable_scope("encoder", reuse=tf.AUTO_REUSE):
             self.logger.log_print("# create hidden layer for encoder")
-            """convert layer input for encoder"""
+            """convert layer input for encoder"""            
+            encoder_layer_output = []
+            encoder_layer_final_state = []
+            if include_input == True:
+                encoder_layer_output.append(encoder_input)
+            
             (fwd_layer_input, bwd_layer_input, fwd_layer_input_length,
                 bwd_layer_input_length) = self._convert_layer_input(encoder_input, encoder_input_length)
             
-            encoder_layer_output = []
-            encoder_layer_final_state = []
             for i in range(num_layer):
                 """build forward layer for encoder"""
                 fwd_layer_output, fwd_layer_final_state = self._build_rnn_layer(fwd_layer_input,
