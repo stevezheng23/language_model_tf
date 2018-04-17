@@ -26,7 +26,7 @@
     "train_optimizer_adam_beta_2": 0.999,
     "train_optimizer_adam_epsilon": 1e-08,
     "model_type": "bi_directional",
-    "model_scope": "lm",
+    "model_scope": "bilm",
     "model_pretrained_embedding": true,
     "model_embed_dim": 300,
     "model_encoder_num_layer": 1,

@@ -1,6 +1,8 @@
 import argparse
 import codecs
 import json
+import math
+import os.path
 
 import numpy as np
 import tensorflow as tf
