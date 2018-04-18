@@ -66,7 +66,7 @@ def create_default_hyperparams():
         model_encoder_dropout=0.1,
         model_encoder_encoding_type="top",
         model_encoder_encoding_include_input=False,
-        model_decoder_projection_activation="tanh",
+        model_decoder_projection_activation="",
         model_decoder_prediction_type="sample",
         device_num_gpus=1,
         device_default_gpu_id=0,
