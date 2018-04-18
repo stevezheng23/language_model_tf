@@ -53,6 +53,7 @@ def decode_eval(logger,
                 input_data,
                 embedding,
                 global_step,
+                max_len,
                 batch_size,
                 random_seed,
                 model_type):
@@ -73,7 +74,7 @@ def decode_eval(logger,
     sample_output = []
     sample_reference = []
     for index in range(len(sample_input_data)):
-        input_data = sample_input_data[index].split(' ')
+        input_data = sample_input_data[index].split(' ')[:max_len]
         output_data = infer_result.sample_word[index]
         sample_pos = np.random.randint(0, len(input_data)-1, size=1)[0]
         if model_type == "forward_only":
@@ -153,16 +154,16 @@ def train(logger,
                     intrinsic_eval(eval_logger, eval_summary_writer, eval_sess, eval_model,
                         eval_model.embedding, global_step)
                     decode_eval(eval_logger, infer_summary_writer, infer_sess, infer_model,
-                        infer_model.input_data, infer_model.embedding, global_step, hyperparams.train_infer_batch_size,
-                        hyperparams.train_random_seed, hyperparams.model_type)
+                        infer_model.input_data, infer_model.embedding, global_step, hyperparams.data_max_length,
+                        hyperparams.train_infer_batch_size, hyperparams.train_random_seed, hyperparams.model_type)
             except tf.errors.OutOfRangeError:
                 train_logger.check()
                 train_model.model.save(train_sess, global_step)
                 intrinsic_eval(eval_logger, eval_summary_writer, eval_sess, eval_model,
                     eval_model.embedding, global_step)
                 decode_eval(eval_logger, infer_summary_writer, infer_sess, infer_model,
-                    infer_model.input_data, infer_model.embedding, global_step, hyperparams.train_infer_batch_size,
-                    hyperparams.train_random_seed, hyperparams.model_type)
+                    infer_model.input_data, infer_model.embedding, global_step, hyperparams.data_max_length,
+                    hyperparams.train_infer_batch_size, hyperparams.train_random_seed, hyperparams.model_type)
                 break
 
     train_summary_writer.close_writer()
