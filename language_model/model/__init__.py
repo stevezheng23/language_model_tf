@@ -1,1 +1,1 @@
-__all__ = ["language_model", "language_model_bidirectional"]
+__all__ = ["base_model", "language_model", "language_model_bidirectional"]
