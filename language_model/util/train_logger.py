@@ -54,8 +54,8 @@ class TrainLogger(object):
         if sample_size_delta <= 0:
             return
         
-        avg_loss = loss_delta/sample_size_delta
-        curr_loss = self.loss/self.sample_size
+        avg_loss = loss_delta / sample_size_delta
+        curr_loss = self.loss / self.sample_size
         
         log_line = "epoch={0}, step={1}, global step={2}, train time={3} avg. loss={4}, curr loss={5}".format(
             self.epoch, self.step_in_epoch, self.global_step, train_time_delta, avg_loss, curr_loss).encode('utf-8')
