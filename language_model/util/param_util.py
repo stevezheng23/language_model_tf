@@ -82,9 +82,9 @@ def load_hyperparams(config_file):
     """load hyperparameters from config file"""
     if tf.gfile.Exists(config_file):
         with codecs.getreader("utf-8")(tf.gfile.GFile(config_file, "rb")) as file:
-            hyperparams = create_default_hyperparams()
             hyperparams_dict = json.load(file)
-            hyperparams.set_from_map(hyperparams_dict)
+            hyperparams = create_default_hyperparams(hyperparams_dict["model_type"])
+            hyperparams.override_from_dict(hyperparams_dict)
             
             return hyperparams
     else:
@@ -114,7 +114,8 @@ def generate_search_lookup(search,
             raise ValueError("unsupported data type {0}".format(data_type))
     elif search_type == "discrete":
         search_set = search["set"]
-        search_sample = np.random.choice(search_set)
+        search_index = np.random.choice(len(search_set))
+        search_sample = search_set[search_index]
     elif search_type == "lookup":
         search_key = search["key"]
         if search_key in search_lookup:
@@ -134,7 +135,9 @@ def generate_search_lookup(search,
     elif data_type == "string":
         search_sample = str(search_sample)
     elif data_type == "boolean":
-        search_sample = bool(search_sample) 
+        search_sample = bool(search_sample)
+    elif data_type == "list":
+        search_sample = list(search_sample)
     else:
         raise ValueError("unsupported data type {0}".format(data_type))
     
@@ -163,7 +166,7 @@ def search_hyperparams(hyperparams,
                     hyperparams_search_lookup[key] = generate_search_lookup(hyperparams_search, variables_search_lookup)
                 
                 hyperparams_sample = tf.contrib.training.HParams(hyperparams.to_proto())
-                hyperparams_sample.set_from_map(hyperparams_search_lookup)
+                hyperparams_sample.override_from_dict(hyperparams_search_lookup)
                 hyperparams_group.append(hyperparams_sample)
             
             return hyperparams_group
@@ -178,5 +181,6 @@ def create_hyperparams_file(hyperparams_group, config_dir):
     for i in range(len(hyperparams_group)):
         config_file = os.path.join(config_dir, "config_hyperparams_{0}.json".format(i))
         with codecs.getwriter("utf-8")(tf.gfile.GFile(config_file, "w")) as file:
-            hyperparams_json = json.dumps(hyperparams_group[i].values(), indent=4)
+            hyperparam_dict = hyperparams_group[i].values()
+            hyperparams_json = json.dumps(hyperparam_dict, indent=4)
             file.write(hyperparams_json)
