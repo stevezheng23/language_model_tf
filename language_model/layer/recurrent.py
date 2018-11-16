@@ -6,7 +6,7 @@ from tensorflow.contrib.rnn import RNNCell
 from util.default_util import *
 from util.sequence_labeling_util import *
 
-__all__ = ["RNN", "BiRNN"]
+__all__ = ["RNN", "BiRNN", "StackedRNN", "StackedBiRNN"]
 
 def _extract_hidden_state(state,
                           cell_type):
@@ -244,6 +244,72 @@ class BiRNN(object):
                     shape=tf.concat([input_mask_shape[:-2], final_state_mask_shape[-1:]], axis=0))
         
         return output_recurrent, output_mask, final_state_recurrent, final_state_mask
+
+class StackedRNN(object):
+    """stacked uni-directional recurrent layer"""
+    def __init__(self,
+                 num_layer,
+                 unit_dim,
+                 cell_type,
+                 activation,
+                 dropout,
+                 forget_bias=1.0,
+                 residual_connect=False,
+                 attention_mechanism=None,
+                 num_gpus=1,
+                 default_gpu_id=0,
+                 random_seed=0,
+                 trainable=True,
+                 scope="stacked_rnn"):
+        """initialize stacked uni-directional recurrent layer"""
+        self.num_layer = num_layer
+        self.unit_dim = unit_dim
+        self.cell_type = cell_type
+        self.activation = activation
+        self.dropout = dropout
+        self.forget_bias = forget_bias
+        self.residual_connect = residual_connect
+        self.attention_mechanism = attention_mechanism
+        self.num_gpus = num_gpus
+        self.default_gpu_id = default_gpu_id
+        self.random_seed = random_seed
+        self.trainable = trainable
+        self.scope = scope
+        
+        with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
+            self.recurrent_layer_list = []
+            for i in range(self.num_layer):
+                layer_scope = "layer_{0}".format(i)
+                layer_default_gpu_id = self.default_gpu_id + i
+                sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
+                recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
+                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=layer_default_gpu_id,
+                    random_seed=self.random_seed, trainable=self.trainable, scope=layer_scope)
+                self.recurrent_layer_list.append(recurrent_layer)
+    
+    def __call__(self,
+                 input_data,
+                 input_mask):
+        """call stacked uni-directional recurrent layer"""
+        with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
+            input_recurrent = input_data
+            input_recurrent_mask = input_mask
+            
+            output_recurrent_list = []
+            output_recurrent_mask_list = []
+            for recurrent_layer in self.recurrent_layer_list:
+                output_recurrent, output_recurrent_mask = dense_layer(input_recurrent, input_recurrent_mask)
+                output_recurrent_list.append(output_recurrent)
+                output_recurrent_mask_list.append(output_recurrent_mask)
+                input_recurrent = output_recurrent
+                input_recurrent_mask = output_recurrent_mask
+        
+        return output_recurrent, output_recurrent_mask, output_recurrent_list, output_recurrent_mask_list
+
+class StackedBiRNN(object):
+    """stacked bi-directional recurrent layer"""
+    pass
 
 class AttentionCellWrapper(RNNCell):
     def __init__(self,
