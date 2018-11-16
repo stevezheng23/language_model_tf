@@ -8,6 +8,30 @@ from util.sequence_labeling_util import *
 
 __all__ = ["RNN", "BiRNN", "StackedRNN", "StackedBiRNN"]
 
+def _reverse_sequence(input_data,
+                      input_mask):
+    """reverse sequence"""
+    input_data_shape = tf.shape(input_data)
+    input_mask_shape = tf.shape(input_mask)
+    shape_size = len(input_data.get_shape().as_list())
+    if shape_size > 3:
+        input_data = tf.reshape(input_data, shape=tf.concat([[-1], input_data_shape[-2:]], axis=0))
+        input_mask = tf.reshape(input_mask, shape=tf.concat([[-1], input_mask_shape[-2:]], axis=0))
+    
+    input_length = tf.cast(tf.reduce_sum(tf.squeeze(input_mask, axis=-1), axis=-1), dtype=tf.int32)
+    output_data = tf.reverse_sequence(input_data, input_length, seq_axis=1, batch_axis=0)
+    output_mask = input_mask
+    
+    if shape_size > 3:
+        output_data_shape = tf.shape(output_data)
+        output_mask_shape = tf.shape(output_mask)
+        output_data = tf.reshape(output_data,
+            shape=tf.concat([input_data_shape[:-2], output_data_shape[-2:]], axis=0))
+        output_mask = tf.reshape(output_mask,
+            shape=tf.concat([input_mask_shape[:-2], output_mask_shape[-2:]], axis=0))
+    
+    return output_data, output_mask
+
 def _extract_hidden_state(state,
                           cell_type):
     """extract hidden state"""
@@ -299,17 +323,94 @@ class StackedRNN(object):
             output_recurrent_list = []
             output_recurrent_mask_list = []
             for recurrent_layer in self.recurrent_layer_list:
-                output_recurrent, output_recurrent_mask = dense_layer(input_recurrent, input_recurrent_mask)
+                output_recurrent, output_recurrent_mask = recurrent_layer(input_recurrent, input_recurrent_mask)
                 output_recurrent_list.append(output_recurrent)
                 output_recurrent_mask_list.append(output_recurrent_mask)
                 input_recurrent = output_recurrent
                 input_recurrent_mask = output_recurrent_mask
         
-        return output_recurrent, output_recurrent_mask, output_recurrent_list, output_recurrent_mask_list
+        return output_recurrent_list, output_recurrent_mask_list
 
 class StackedBiRNN(object):
     """stacked bi-directional recurrent layer"""
-    pass
+    def __init__(self,
+                 num_layer,
+                 unit_dim,
+                 cell_type,
+                 activation,
+                 dropout,
+                 forget_bias=1.0,
+                 residual_connect=False,
+                 attention_mechanism=None,
+                 num_gpus=1,
+                 default_gpu_id=0,
+                 random_seed=0,
+                 trainable=True,
+                 scope="stacked_bi_rnn"):
+        """initialize stacked bi-directional recurrent layer"""
+        self.num_layer = num_layer
+        self.unit_dim = unit_dim
+        self.cell_type = cell_type
+        self.activation = activation
+        self.dropout = dropout
+        self.forget_bias = forget_bias
+        self.residual_connect = residual_connect
+        self.attention_mechanism = attention_mechanism
+        self.num_gpus = num_gpus
+        self.default_gpu_id = default_gpu_id
+        self.random_seed = random_seed
+        self.trainable = trainable
+        self.scope = scope
+        
+        with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
+            self.fwd_recurrent_layer_list = []
+            self.bwd_recurrent_layer_list = []
+            for i in range(self.num_layer):
+                fwd_layer_scope = "fwd_layer_{0}".format(i)
+                bwd_layer_scope = "bwd_layer_{0}".format(i)
+                fwd_layer_default_gpu_id = self.default_gpu_id + i
+                bwd_layer_default_gpu_id = self.default_gpu_id + self.num_layer + i
+                sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
+                fwd_recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
+                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=fwd_layer_default_gpu_id,
+                    random_seed=self.random_seed, trainable=self.trainable, scope=fwd_layer_scope)
+                bwd_recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
+                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=bwd_layer_default_gpu_id,
+                    random_seed=self.random_seed, trainable=self.trainable, scope=bwd_layer_scope)
+                self.fwd_recurrent_layer_list.append(fwd_recurrent_layer)
+                self.bwd_recurrent_layer_list.append(bwd_recurrent_layer)
+            
+            self.recurrent_layer_list = list(zip(self.fwd_recurrent_layer_list, self.bwd_recurrent_layer_list))
+    
+    def __call__(self,
+                 input_data,
+                 input_mask):
+        """call stacked bi-directional recurrent layer"""
+        with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
+            input_fwd_recurrent = input_data
+            input_fwd_recurrent_mask = input_mask
+            input_bwd_recurrent = _reverse_sequence(input_data, input_mask)
+            input_bwd_recurrent_mask = input_mask
+            
+            output_fwd_recurrent_list = []
+            output_fwd_recurrent_mask_list = []
+            output_bwd_recurrent_list = []
+            output_bwd_recurrent_mask_list = []
+            for fwd_recurrent_layer, bwd_recurrent_layer in self.recurrent_layer_list:
+                output_fwd_recurrent, output_fwd_recurrent_mask = fwd_recurrent_layer(input_fwd_recurrent, input_fwd_recurrent_mask)
+                output_bwd_recurrent, output_bwd_recurrent_mask = bwd_recurrent_layer(input_bwd_recurrent, input_bwd_recurrent_mask)
+                output_fwd_recurrent_list.append(output_fwd_recurrent)
+                output_fwd_recurrent_mask_list.append(output_fwd_recurrent_mask)
+                output_bwd_recurrent_list.append(output_bwd_recurrent)
+                output_bwd_recurrent_mask_list.append(output_bwd_recurrent_mask)
+                input_fwd_recurrent = output_fwd_recurrent
+                input_fwd_recurrent_mask = output_fwd_recurrent_mask
+                input_bwd_recurrent = output_bwd_recurrent
+                input_bwd_recurrent_mask = output_bwd_recurrent_mask
+        
+        return output_fwd_recurrent_list, output_bwd_recurrent_list, output_fwd_recurrent_mask_list, output_bwd_recurrent_mask_list
 
 class AttentionCellWrapper(RNNCell):
     def __init__(self,
