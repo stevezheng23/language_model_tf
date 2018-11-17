@@ -8,6 +8,35 @@ from util.sequence_labeling_util import *
 
 __all__ = ["RNN", "BiRNN", "StackedRNN", "StackedBiRNN"]
 
+def _align_sequence(input_data,
+                    input_mask,
+                    alignment):
+    """align sequence"""
+    input_data_shape = tf.shape(input_data)
+    input_mask_shape = tf.shape(input_mask)
+    shape_size = len(input_data.get_shape().as_list())
+    if shape_size > 3:
+        input_data = tf.reshape(input_data, shape=tf.concat([[-1], input_data_shape[-2:]], axis=0))
+        input_mask = tf.reshape(input_mask, shape=tf.concat([[-1], input_mask_shape[-2:]], axis=0))
+    
+    if alignment > 0:
+        padding = tf.constant([[0, 0], [0, seq_align], [0, 0]])
+        output_mask = tf.pad(input_mask[:,seq_align:,:], padding)
+        output_data = tf.pad(input_data[:,seq_align:,:], padding) * output_mask
+    else
+        output_data = input_data
+        output_mask = input_mask
+    
+    if shape_size > 3:
+        output_data_shape = tf.shape(output_data)
+        output_mask_shape = tf.shape(output_mask)
+        output_data = tf.reshape(output_data,
+            shape=tf.concat([input_data_shape[:-2], output_data_shape[-2:]], axis=0))
+        output_mask = tf.reshape(output_mask,
+            shape=tf.concat([input_mask_shape[:-2], output_mask_shape[-2:]], axis=0))
+    
+    return output_data, output_mask
+
 def _reverse_sequence(input_data,
                       input_mask):
     """reverse sequence"""
@@ -390,27 +419,29 @@ class StackedBiRNN(object):
         """call stacked bi-directional recurrent layer"""
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
             input_fwd_recurrent = input_data
-            input_fwd_recurrent_mask = input_mask
             input_bwd_recurrent = _reverse_sequence(input_data, input_mask)
+            input_fwd_recurrent_mask = input_mask
             input_bwd_recurrent_mask = input_mask
             
-            output_fwd_recurrent_list = []
-            output_fwd_recurrent_mask_list = []
-            output_bwd_recurrent_list = []
-            output_bwd_recurrent_mask_list = []
+            output_recurrent_list = []
+            output_recurrent_mask_list = []
             for fwd_recurrent_layer, bwd_recurrent_layer in self.recurrent_layer_list:
                 output_fwd_recurrent, output_fwd_recurrent_mask = fwd_recurrent_layer(input_fwd_recurrent, input_fwd_recurrent_mask)
                 output_bwd_recurrent, output_bwd_recurrent_mask = bwd_recurrent_layer(input_bwd_recurrent, input_bwd_recurrent_mask)
-                output_fwd_recurrent_list.append(output_fwd_recurrent)
-                output_fwd_recurrent_mask_list.append(output_fwd_recurrent_mask)
-                output_bwd_recurrent_list.append(output_bwd_recurrent)
-                output_bwd_recurrent_mask_list.append(output_bwd_recurrent_mask)
                 input_fwd_recurrent = output_fwd_recurrent
-                input_fwd_recurrent_mask = output_fwd_recurrent_mask
                 input_bwd_recurrent = output_bwd_recurrent
+                input_fwd_recurrent_mask = output_fwd_recurrent_mask
                 input_bwd_recurrent_mask = output_bwd_recurrent_mask
+                
+                output_bwd_recurrent, output_bwd_recurrent_mask = _reverse_sequence(output_bwd_recurrent, output_bwd_recurrent_mask)
+                output_bwd_recurrent, output_bwd_recurrent_mask = _align_sequence(output_bwd_recurrent, output_bwd_recurrent_mask, 2)
+                output_recurrent = tf.concat([output_fwd_recurrent, output_bwd_recurrent], axis=-1)
+                output_recurrent_mask = tf.reduce_max(tf.concat(
+                    [output_fwd_recurrent, output_bwd_recurrent], axis=-1), axis=-1, keepdims=True)
+                output_recurrent_list.append(output_recurrent)
+                output_recurrent_mask_list.append(output_recurrent_mask)
         
-        return output_fwd_recurrent_list, output_bwd_recurrent_list, output_fwd_recurrent_mask_list, output_bwd_recurrent_mask_list
+        return output_recurrent_list, output_recurrent_mask_list
 
 class AttentionCellWrapper(RNNCell):
     def __init__(self,
