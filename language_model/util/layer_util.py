@@ -220,6 +220,16 @@ def create_recurrent_layer(recurrent_type,
             activation=activation, dropout=dropout, forget_bias=forget_bias, residual_connect=residual_connect,
             attention_mechanism=attention_mechanism, num_gpus=num_gpus, default_gpu_id=default_gpu_id,
             random_seed=random_seed, trainable=trainable, scope=scope)
+    elif recurrent_type == "stacked_uni":
+        recurrent_layer = StackedRNN(num_layer=num_layer, unit_dim=unit_dim, cell_type=cell_type,
+            activation=activation, dropout=dropout, forget_bias=forget_bias, residual_connect=residual_connect,
+            attention_mechanism=attention_mechanism, num_gpus=num_gpus, default_gpu_id=default_gpu_id,
+            random_seed=random_seed, trainable=trainable, scope=scope)
+    elif recurrent_type == "stacked_bi":
+        recurrent_layer = StackedBiRNN(num_layer=num_layer, unit_dim=unit_dim, cell_type=cell_type,
+            activation=activation, dropout=dropout, forget_bias=forget_bias, residual_connect=residual_connect,
+            attention_mechanism=attention_mechanism, num_gpus=num_gpus, default_gpu_id=default_gpu_id,
+            random_seed=random_seed, trainable=trainable, scope=scope)
     else:
         raise ValueError("unsupported recurrent type {0}".format(recurrent_type))
     
