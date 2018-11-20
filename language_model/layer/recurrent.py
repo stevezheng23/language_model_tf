@@ -20,9 +20,9 @@ def _align_sequence(input_data,
         input_mask = tf.reshape(input_mask, shape=tf.concat([[-1], input_mask_shape[-2:]], axis=0))
     
     if alignment > 0:
-        padding = tf.constant([[0, 0], [0, seq_align], [0, 0]])
-        output_mask = tf.pad(input_mask[:,seq_align:,:], padding)
-        output_data = tf.pad(input_data[:,seq_align:,:], padding) * output_mask
+        padding = tf.constant([[0, 0], [0, alignment], [0, 0]])
+        output_mask = tf.pad(input_mask[:,alignment:,:], padding)
+        output_data = tf.pad(input_data[:,alignment:,:], padding) * output_mask
     else:
         output_data = input_data
         output_mask = input_mask
@@ -418,9 +418,8 @@ class StackedBiRNN(object):
         """call stacked bi-directional recurrent layer"""
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
             input_fwd_recurrent = input_data
-            input_bwd_recurrent = _reverse_sequence(input_data, input_mask)
             input_fwd_recurrent_mask = input_mask
-            input_bwd_recurrent_mask = input_mask
+            input_bwd_recurrent, input_bwd_recurrent_mask = _reverse_sequence(input_data, input_mask)
             
             output_recurrent_list = []
             output_recurrent_mask_list = []
