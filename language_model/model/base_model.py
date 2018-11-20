@@ -8,7 +8,7 @@ from util.default_util import *
 from util.language_model_util import *
 from util.layer_util import *
 
-__all__ = ["TrainResult", "BaseModel", "FusionModule"]
+__all__ = ["TrainResult", "EvalResult", "DecodeResult", "EncodeResult", "BaseModel", "FusionModule"]
 
 class TrainResult(collections.namedtuple("TrainResult",
     ("loss", "learning_rate", "global_step", "batch_size", "summary"))):
@@ -27,14 +27,14 @@ class EncodeResult(collections.namedtuple("EncodeResult",
     pass
 
 class BaseModel(object):
-    """sequence labeling base model"""
+    """language model base model"""
     def __init__(self,
                  logger,
                  hyperparams,
                  data_pipeline,
                  mode="train",
                  scope="base"):
-        """initialize sequence labeling base model"""
+        """initialize language model base model"""
         self.logger = logger
         self.hyperparams = hyperparams
         self.data_pipeline = data_pipeline

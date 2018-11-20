@@ -6,6 +6,9 @@ import tensorflow as tf
 
 from util.default_util import *
 from util.language_model_util import *
+from util.layer_util import *
+
+from model.base_model import *
 
 __all__ = ["SequenceLM"]
 
