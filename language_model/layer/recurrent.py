@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import RNNCell
 
 from util.default_util import *
-from util.sequence_labeling_util import *
+from util.language_model_util import *
 
 __all__ = ["RNN", "BiRNN", "StackedRNN", "StackedBiRNN"]
 
@@ -23,7 +23,7 @@ def _align_sequence(input_data,
         padding = tf.constant([[0, 0], [0, seq_align], [0, 0]])
         output_mask = tf.pad(input_mask[:,seq_align:,:], padding)
         output_data = tf.pad(input_data[:,seq_align:,:], padding) * output_mask
-    else
+    else:
         output_data = input_data
         output_mask = input_mask
     
@@ -334,9 +334,8 @@ class StackedRNN(object):
             for i in range(self.num_layer):
                 layer_scope = "layer_{0}".format(i)
                 layer_default_gpu_id = self.default_gpu_id + i
-                sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
-                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    dropout=self.dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
                     attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=layer_default_gpu_id,
                     random_seed=self.random_seed, trainable=self.trainable, scope=layer_scope)
                 self.recurrent_layer_list.append(recurrent_layer)
@@ -352,7 +351,8 @@ class StackedRNN(object):
             output_recurrent_list = []
             output_recurrent_mask_list = []
             for recurrent_layer in self.recurrent_layer_list:
-                output_recurrent, output_recurrent_mask = recurrent_layer(input_recurrent, input_recurrent_mask)
+                (output_recurrent, output_recurrent_mask,
+                    _, _) = recurrent_layer(input_recurrent, input_recurrent_mask)
                 output_recurrent_list.append(output_recurrent)
                 output_recurrent_mask_list.append(output_recurrent_mask)
                 input_recurrent = output_recurrent
@@ -399,13 +399,12 @@ class StackedBiRNN(object):
                 bwd_layer_scope = "bwd_layer_{0}".format(i)
                 fwd_layer_default_gpu_id = self.default_gpu_id + i
                 bwd_layer_default_gpu_id = self.default_gpu_id + self.num_layer + i
-                sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 fwd_recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
-                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    dropout=self.dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
                     attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=fwd_layer_default_gpu_id,
                     random_seed=self.random_seed, trainable=self.trainable, scope=fwd_layer_scope)
                 bwd_recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
-                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    dropout=self.dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
                     attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=bwd_layer_default_gpu_id,
                     random_seed=self.random_seed, trainable=self.trainable, scope=bwd_layer_scope)
                 self.fwd_recurrent_layer_list.append(fwd_recurrent_layer)
@@ -426,8 +425,10 @@ class StackedBiRNN(object):
             output_recurrent_list = []
             output_recurrent_mask_list = []
             for fwd_recurrent_layer, bwd_recurrent_layer in self.recurrent_layer_list:
-                output_fwd_recurrent, output_fwd_recurrent_mask = fwd_recurrent_layer(input_fwd_recurrent, input_fwd_recurrent_mask)
-                output_bwd_recurrent, output_bwd_recurrent_mask = bwd_recurrent_layer(input_bwd_recurrent, input_bwd_recurrent_mask)
+                (output_fwd_recurrent, output_fwd_recurrent_mask,
+                    _, _) = fwd_recurrent_layer(input_fwd_recurrent, input_fwd_recurrent_mask)
+                (output_bwd_recurrent, output_bwd_recurrent_mask,
+                    _, _) = bwd_recurrent_layer(input_bwd_recurrent, input_bwd_recurrent_mask)
                 input_fwd_recurrent = output_fwd_recurrent
                 input_bwd_recurrent = output_bwd_recurrent
                 input_fwd_recurrent_mask = output_fwd_recurrent_mask
@@ -437,7 +438,7 @@ class StackedBiRNN(object):
                 output_bwd_recurrent, output_bwd_recurrent_mask = _align_sequence(output_bwd_recurrent, output_bwd_recurrent_mask, 2)
                 output_recurrent = tf.concat([output_fwd_recurrent, output_bwd_recurrent], axis=-1)
                 output_recurrent_mask = tf.reduce_max(tf.concat(
-                    [output_fwd_recurrent, output_bwd_recurrent], axis=-1), axis=-1, keepdims=True)
+                    [output_fwd_recurrent_mask, output_bwd_recurrent_mask], axis=-1), axis=-1, keepdims=True)
                 output_recurrent_list.append(output_recurrent)
                 output_recurrent_mask_list.append(output_recurrent_mask)
         
