@@ -5,6 +5,8 @@ import os.path
 import numpy as np
 import tensorflow as tf
 
+from util.default_util import *
+
 __all__ = ["DataPipeline", "create_dynamic_pipeline", "create_data_pipeline",
            "create_text_dataset", "generate_word_feat", "generate_char_feat",
            "create_embedding_file", "load_embedding_file", "convert_embedding",
@@ -198,7 +200,7 @@ def generate_char_feat(sentence,
     
     sentence_words = tf.string_split([sentence], delimiter=' ').values
     sentence_words = tf.concat([[word_sos], sentence_words[:word_max_size], [word_eos],
-        tf.constant(word_pad, shape=[word_max_size])], axis=0)
+        tf.constant(char_pad, shape=[word_max_size])], axis=0)
     sentence_words = tf.reshape(sentence_words[:word_max_size + 2], shape=[word_max_size + 2])
     sentence_chars = tf.map_fn(word_to_char, sentence_words)
     sentence_chars = tf.cast(char_vocab_index.lookup(sentence_chars), dtype=tf.int32)
@@ -392,7 +394,7 @@ def prepare_data(logger,
                  char_pad,
                  char_feat_enable):
     """prepare data"""
-    logger.log_print("# loading input data from {0}".format(input_sequence_file))
+    logger.log_print("# loading input data from {0}".format(input_file))
     input_data = load_data(input_file)
     input_data_size = len(input_data)
     logger.log_print("# input data has {0} lines".format(input_data_size))
