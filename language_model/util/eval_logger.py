@@ -11,24 +11,22 @@ __all__ = ["IntrinsicEvalLog", "DecodeEvalLog", "EvalLogger"]
 class IntrinsicEvalLog(collections.namedtuple("IntrinsicEvalLog", ("metric", "score", "sample_size"))):
     pass
 
-class DecodeEvalLog(collections.namedtuple("DecodeEvalLog", ("sample_input", "sample_output", "sample_reference"))):
+class DecodeEvalLog(collections.namedtuple("DecodeEvalLog", ("sample_decode_list"))):
     pass
 
 class EvalLogger(object):
-    """evaluation logger"""    
+    """eval logger"""    
     def __init__(self,
                  output_dir):
-        """initialize evaluation logger"""
-        """intrinsic evaluation result"""
-        self.intrinsic_metric = 0.0
-        self.intrinsic_score = 0.0
-        self.intrinsic_sample_size = 0
+        """intrinsic eval result"""
+        self.intrinsic_eval = None
+        self.intrinsic_eval_info = None
         
-        """decoding evaluation result"""
-        self.decode_sample_input = None
-        self.decode_sample_output = None
-        self.decode_sample_reference = None
+        """sample decode result"""
+        self.sample_decode = None
+        self.sample_decode_info = None
         
+        """initialize eval logger"""        
         self.output_dir = output_dir
         if not tf.gfile.Exists(self.output_dir):
             tf.gfile.MakeDirs(self.output_dir)
@@ -36,45 +34,45 @@ class EvalLogger(object):
         self.log_writer = codecs.getwriter("utf-8")(tf.gfile.GFile(self.log_file, mode="a"))
     
     def update_intrinsic_eval(self,
-                              eval_result):
-        """update evaluation logger based on intrinsic evaluation result"""
-        self.intrinsic_metric = eval_result.metric
-        self.intrinsic_score = eval_result.score
-        self.intrinsic_sample_size = eval_result.sample_size
+                              eval_result,
+                              basic_info):
+        """update eval logger with intrinsic eval result"""
+        self.intrinsic_eval = eval_result
+        self.intrinsic_eval_info = basic_info
     
-    def update_decode_eval(self,
-                           eval_result):
-        """update evaluation logger based on decoding evaluation result"""
-        self.decode_sample_input = eval_result.sample_input
-        self.decode_sample_output = eval_result.sample_output
-        self.decode_sample_reference = eval_result.sample_reference
+    def update_sample_decode(self,
+                             decode_result,
+                             basic_info):
+        """update eval logger with sample decode result"""
+        self.sample_decode = decode_result
+        self.sample_decode_info = basic_info
     
     def check_intrinsic_eval(self):
-        """check intrinsic evaluation result"""       
-        log_line = "{0}={1}, sample size={2}".format(self.intrinsic_metric,
-            self.intrinsic_score, self.intrinsic_sample_size).encode('utf-8')
+        """check intrinsic eval result"""
+        log_line = "epoch={0}, global step={1}, {2}={3}, sample size={4}".format(
+            self.intrinsic_eval_info.epoch, self.intrinsic_eval_info.global_step, self.intrinsic_eval.metric,
+            self.intrinsic_eval.score, self.intrinsic_eval.sample_size).encode('utf-8')
         self.log_writer.write("{0}\r\n".format(log_line))
         print(log_line)
     
-    def check_decode_eval(self):
-        """check decoding evaluation result"""
-        input_size = len(self.decode_sample_input)
-        output_size = len(self.decode_sample_output)
-        reference_size = len(self.decode_sample_reference)
+    def check_sample_decode(self):
+        """check sample decode result"""
+        sample_size = len(self.sample_decode.sample_decode_list)
+        log_line = "epoch={0}, global step={1}, sample size={2}".format(self.sample_decode_info.epoch,
+            self.sample_decode_info.global_step, sample_size).encode('utf-8')
+        self.log_writer.write("{0}\r\n".format(log_line))
+        print(log_line)
         
-        if input_size != output_size or input_size != reference_size:
-            raise ValueError("size of decoding input, output and reference don't match")
-        
-        for i in range(input_size):
-            decode_input = self.decode_sample_input[i]
-            log_line = "sample {0} - input: {1}".format(i+1, decode_input).encode('utf-8')
+        for i, sample_decode in enumerate(self.sample_decode.sample_decode_list):
+            sample_input = sample_decode["sample_input"]
+            log_line = "sample {0} - input: {1}".format(i+1, sample_input).encode('utf-8')
             self.log_writer.write("{0}\r\n".format(log_line))
             print(log_line)
-            decode_output = self.decode_sample_output[i]
-            log_line = "sample {0} - output: {1}".format(i+1, decode_output).encode('utf-8')
+            sample_output = sample_decode["sample_output"]
+            log_line = "sample {0} - output: {1}".format(i+1, sample_output).encode('utf-8')
             self.log_writer.write("{0}\r\n".format(log_line))
             print(log_line)
-            decode_reference = self.decode_sample_reference[i]
-            log_line = "sample {0} - reference: {1}".format(i+1, decode_reference).encode('utf-8')
+            sample_reference = sample_decode["sample_reference"]
+            log_line = "sample {0} - reference: {1}".format(i+1, sample_reference).encode('utf-8')
             self.log_writer.write("{0}\r\n".format(log_line))
             print(log_line)
