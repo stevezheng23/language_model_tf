@@ -42,9 +42,9 @@ def create_train_model(logger,
         logger.log_print("# create train text dataset")
         text_dataset = tf.data.TextLineDataset([hyperparams.data_train_file])
         input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
-            word_vocab_index, hyperparams.data_text_word_size, hyperparams.data_word_pad,
+            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
             hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
-            char_vocab_index, hyperparams.data_text_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
+            char_vocab_index, hyperparams.data_max_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
         logger.log_print("# create train data pipeline")
         data_pipeline = create_data_pipeline(input_text_word_dataset, input_text_char_dataset,
@@ -77,9 +77,9 @@ def create_eval_model(logger,
         text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
         text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
         input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
-            word_vocab_index, hyperparams.data_text_word_size, hyperparams.data_word_pad,
+            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
             hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
-            char_vocab_index, hyperparams.data_text_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
+            char_vocab_index, hyperparams.data_max_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
         logger.log_print("# create eval data pipeline")
         data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
@@ -114,9 +114,9 @@ def create_decode_model(logger,
         text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
         text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
         input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
-            word_vocab_index, hyperparams.data_text_word_size, hyperparams.data_word_pad,
+            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
             hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
-            char_vocab_index, hyperparams.data_text_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
+            char_vocab_index, hyperparams.data_max_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
         logger.log_print("# create decode data pipeline")
         data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
@@ -151,9 +151,9 @@ def create_encode_model(logger,
         text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
         text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
         input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
-            word_vocab_index, hyperparams.data_text_word_size, hyperparams.data_word_pad,
+            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
             hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
-            char_vocab_index, hyperparams.data_text_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
+            char_vocab_index, hyperparams.data_max_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
         logger.log_print("# create encode data pipeline")
         data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
