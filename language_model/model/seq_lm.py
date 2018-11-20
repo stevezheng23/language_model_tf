@@ -123,7 +123,6 @@ class SequenceLM(BaseModel):
         word_embed_dim = self.hyperparams.model_word_embed_dim
         word_dropout = self.hyperparams.model_word_dropout if self.mode == "train" else 0.0
         word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
-        word_feat_feedable = False if self.mode == "online" else True
         word_feat_trainable = self.hyperparams.model_word_feat_trainable
         word_feat_enable = self.hyperparams.model_word_feat_enable
         char_embed_dim = self.hyperparams.model_char_embed_dim
@@ -150,7 +149,7 @@ class SequenceLM(BaseModel):
                 self.logger.log_print("# build word-level representation layer")
                 word_feat_layer = WordFeat(vocab_size=self.word_vocab_size, embed_dim=word_embed_dim,
                     dropout=word_dropout, pretrained=word_embed_pretrained, random_seed=random_seed,
-                    feedable=word_feat_feedable, trainable=word_feat_trainable)
+                    feedable=True, trainable=word_feat_trainable)
                 
                 (text_word_feat,
                     text_word_feat_mask) = word_feat_layer(text_word, text_word_mask)

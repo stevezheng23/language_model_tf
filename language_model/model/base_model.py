@@ -14,6 +14,18 @@ class TrainResult(collections.namedtuple("TrainResult",
     ("loss", "learning_rate", "global_step", "batch_size", "summary"))):
     pass
 
+class EvalResult(collections.namedtuple("EvalResult",
+    ("loss", "word_count", "batch_size"))):
+    pass
+
+class DecodeResult(collections.namedtuple("DecodeResult",
+    ("decode_output", "sequence_length", "batch_size"))):
+    pass
+
+class EncodeResult(collections.namedtuple("EncodeResult",
+    ("encode_output", "sequence_length", "batch_size"))):
+    pass
+
 class BaseModel(object):
     """sequence labeling base model"""
     def __init__(self,
@@ -159,6 +171,48 @@ class BaseModel(object):
         
         return TrainResult(loss=loss, learning_rate=learning_rate,
             global_step=global_step, batch_size=batch_size, summary=summary)
+    
+    def evaluate(self,
+                 sess,
+                 word_embedding):
+        """evaluate model"""
+        word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
+        
+        if word_embed_pretrained == True:
+            loss, word_count, batch_size = sess.run([self.eval_loss, self.word_count, self.batch_size],
+                feed_dict={self.word_embedding_placeholder: word_embedding})
+        else:
+            loss, word_count, batch_size = sess.run([self.eval_loss, self.word_count, self.batch_size])
+        
+        return EvalResult(loss=loss, word_count=word_count, batch_size=batch_size)
+    
+    def decode(self,
+               sess,
+               word_embedding):
+        """decode model"""
+        word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
+        
+        if word_embed_pretrained == True:
+            decode_output, sequence_length, batch_size = sess.run([self.decode_output, self.sequence_length, self.batch_size],
+                feed_dict={self.word_embedding_placeholder: word_embedding})
+        else:
+            decode_output, sequence_length, batch_size = sess.run([self.decode_output, self.sequence_length, self.batch_size])
+        
+        return DecodeResult(decode_output=decode_output, sequence_length=sequence_length, batch_size=batch_size)
+    
+    def encode(self,
+               sess,
+               word_embedding):
+        """encode model"""
+        word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
+        
+        if word_embed_pretrained == True:
+            encode_output, sequence_length, batch_size = sess.run([self.encode_output, self.sequence_length, self.batch_size],
+                feed_dict={self.word_embedding_placeholder: word_embedding})
+        else:
+            encode_output, sequence_length, batch_size = sess.run([self.encode_output, self.sequence_length, self.batch_size])
+        
+        return EncodeResult(encode_output=encode_output, sequence_length=sequence_length, batch_size=batch_size)
     
     def _get_train_summary(self):
         """get train summary"""
