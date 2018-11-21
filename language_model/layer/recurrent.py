@@ -8,59 +8,6 @@ from util.language_model_util import *
 
 __all__ = ["RNN", "BiRNN", "StackedRNN", "StackedBiRNN"]
 
-def _align_sequence(input_data,
-                    input_mask,
-                    alignment):
-    """align sequence"""
-    input_data_shape = tf.shape(input_data)
-    input_mask_shape = tf.shape(input_mask)
-    shape_size = len(input_data.get_shape().as_list())
-    if shape_size > 3:
-        input_data = tf.reshape(input_data, shape=tf.concat([[-1], input_data_shape[-2:]], axis=0))
-        input_mask = tf.reshape(input_mask, shape=tf.concat([[-1], input_mask_shape[-2:]], axis=0))
-    
-    if alignment > 0:
-        padding = tf.constant([[0, 0], [0, alignment], [0, 0]])
-        output_mask = tf.pad(input_mask[:,alignment:,:], padding)
-        output_data = tf.pad(input_data[:,alignment:,:], padding) * output_mask
-    else:
-        output_data = input_data
-        output_mask = input_mask
-    
-    if shape_size > 3:
-        output_data_shape = tf.shape(output_data)
-        output_mask_shape = tf.shape(output_mask)
-        output_data = tf.reshape(output_data,
-            shape=tf.concat([input_data_shape[:-2], output_data_shape[-2:]], axis=0))
-        output_mask = tf.reshape(output_mask,
-            shape=tf.concat([input_mask_shape[:-2], output_mask_shape[-2:]], axis=0))
-    
-    return output_data, output_mask
-
-def _reverse_sequence(input_data,
-                      input_mask):
-    """reverse sequence"""
-    input_data_shape = tf.shape(input_data)
-    input_mask_shape = tf.shape(input_mask)
-    shape_size = len(input_data.get_shape().as_list())
-    if shape_size > 3:
-        input_data = tf.reshape(input_data, shape=tf.concat([[-1], input_data_shape[-2:]], axis=0))
-        input_mask = tf.reshape(input_mask, shape=tf.concat([[-1], input_mask_shape[-2:]], axis=0))
-    
-    input_length = tf.cast(tf.reduce_sum(tf.squeeze(input_mask, axis=-1), axis=-1), dtype=tf.int32)
-    output_data = tf.reverse_sequence(input_data, input_length, seq_axis=1, batch_axis=0)
-    output_mask = input_mask
-    
-    if shape_size > 3:
-        output_data_shape = tf.shape(output_data)
-        output_mask_shape = tf.shape(output_mask)
-        output_data = tf.reshape(output_data,
-            shape=tf.concat([input_data_shape[:-2], output_data_shape[-2:]], axis=0))
-        output_mask = tf.reshape(output_mask,
-            shape=tf.concat([input_mask_shape[:-2], output_mask_shape[-2:]], axis=0))
-    
-    return output_data, output_mask
-
 def _extract_hidden_state(state,
                           cell_type):
     """extract hidden state"""
@@ -419,7 +366,7 @@ class StackedBiRNN(object):
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
             input_fwd_recurrent = input_data
             input_fwd_recurrent_mask = input_mask
-            input_bwd_recurrent, input_bwd_recurrent_mask = _reverse_sequence(input_data, input_mask)
+            input_bwd_recurrent, input_bwd_recurrent_mask = reverse_sequence(input_data, input_mask)
             
             output_recurrent_list = []
             output_recurrent_mask_list = []
@@ -433,8 +380,8 @@ class StackedBiRNN(object):
                 input_fwd_recurrent_mask = output_fwd_recurrent_mask
                 input_bwd_recurrent_mask = output_bwd_recurrent_mask
                 
-                output_bwd_recurrent, output_bwd_recurrent_mask = _reverse_sequence(output_bwd_recurrent, output_bwd_recurrent_mask)
-                output_bwd_recurrent, output_bwd_recurrent_mask = _align_sequence(output_bwd_recurrent, output_bwd_recurrent_mask, 2)
+                output_bwd_recurrent, output_bwd_recurrent_mask = reverse_sequence(output_bwd_recurrent, output_bwd_recurrent_mask)
+                output_bwd_recurrent, output_bwd_recurrent_mask = align_sequence(output_bwd_recurrent, output_bwd_recurrent_mask, 2)
                 output_recurrent = tf.concat([output_fwd_recurrent, output_bwd_recurrent], axis=-1)
                 output_recurrent_mask = tf.reduce_max(tf.concat(
                     [output_fwd_recurrent_mask, output_bwd_recurrent_mask], axis=-1), axis=-1, keepdims=True)

@@ -40,6 +40,14 @@ class SequenceLM(BaseModel):
             predict, predict_mask = self._build_graph(text_word, text_word_mask, text_char, text_char_mask)
             masked_predict = predict * predict_mask
             
+            label = tf.cast(text_word, dtype=tf.float32)
+            label_mask = text_word_mask
+            label, label_mask = align_sequence(label, label_mask, 1)
+            label, label_mask = reverse_sequence(label, label_mask)
+            label, label_mask = align_sequence(label, label_mask, 1)
+            label, label_mask = reverse_sequence(label, label_mask)
+            masked_label = tf.cast(label * label_mask, dtype=tf.int32)
+            
             self.variable_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
             self.variable_lookup = {v.op.name: v for v in self.variable_list}
             
@@ -61,10 +69,6 @@ class SequenceLM(BaseModel):
             if self.mode == "train":
                 self.global_step = tf.get_variable("global_step", shape=[], dtype=tf.int32,
                     initializer=tf.zeros_initializer, trainable=False)
-                
-                label = None
-                label_mask = None
-                masked_label = tf.cast(label * label_mask, dtype=tf.int32)
                 
                 """compute optimization loss"""
                 self.logger.log_print("# setup loss computation mechanism")
