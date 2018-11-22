@@ -54,18 +54,12 @@ class SequenceLM(BaseModel):
             if self.hyperparams.train_ema_enable == True:
                 self.ema = tf.train.ExponentialMovingAverage(decay=self.hyperparams.train_ema_decay_rate)
                 self.variable_lookup = {self.ema.average_name(v): v for v in self.variable_list}
-            
-            if self.mode == "encode":
-                pass
-            
+                        
             if self.mode == "decode":
                 index_predict = tf.argmax(tf.nn.softmax(masked_predict, axis=-1), axis=-1, output_type=tf.int64)
                 self.decode_predict = self.word_vocab_invert_index.lookup(index_predict)
                 self.decode_mask = predict_mask
-            
-            if self.mode == "eval":
-                pass
-            
+                        
             if self.mode == "train":
                 self.global_step = tf.get_variable("global_step", shape=[], dtype=tf.int32,
                     initializer=tf.zeros_initializer, trainable=False)
