@@ -52,25 +52,31 @@ class SequenceLM(BaseModel):
             if self.hyperparams.train_ema_enable == True:
                 self.ema = tf.train.ExponentialMovingAverage(decay=self.hyperparams.train_ema_decay_rate)
                 self.variable_lookup = {self.ema.average_name(v): v for v in self.variable_list}
-                        
+            
             if self.mode == "decode":
                 softmax_predict = softmax_with_mask(predict, predict_mask, axis=-1)
                 index_predict = tf.argmax(softmax_predict, axis=-1, output_type=tf.int64)
                 self.decode_predict = self.word_vocab_invert_index.lookup(index_predict)
                 self.decode_mask = predict_mask
-                        
-            if self.mode == "train":
-                self.global_step = tf.get_variable("global_step", shape=[], dtype=tf.int32,
-                    initializer=tf.zeros_initializer, trainable=False)
-                
+            
+            if self.mode in ["eval", "train"]:
                 """compute optimization loss"""
                 self.logger.log_print("# setup loss computation mechanism")
-                self.train_loss = self._compute_loss(label, label_mask, predict, predict_mask)
+                loss = self._compute_loss(label, label_mask, predict, predict_mask)
                 
                 if self.hyperparams.train_regularization_enable == True:
                     regularization_variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
                     regularization_loss = tf.contrib.layers.apply_regularization(self.regularizer, regularization_variables)
-                    self.train_loss = self.train_loss + regularization_loss
+                    loss = loss + regularization_loss
+            
+            if self.mode == "eval":
+                self.eval_loss = loss
+                self.word_count = tf.reduce_sum(self.sequence_length)
+            
+            if self.mode == "train":
+                self.train_loss = loss
+                self.global_step = tf.get_variable("global_step", shape=[], dtype=tf.int32,
+                    initializer=tf.zeros_initializer, trainable=False)
                 
                 """apply learning rate warm-up & decay"""
                 self.logger.log_print("# setup initial learning rate mechanism")
