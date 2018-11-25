@@ -34,8 +34,8 @@ def create_train_model(logger,
             char_vocab_size, char_vocab_index, char_vocab_inverted_index) = prepare_data(logger,
             hyperparams.data_train_file, hyperparams.data_word_vocab_file, hyperparams.data_word_vocab_size,
             hyperparams.data_word_vocab_threshold, hyperparams.model_word_embed_dim, hyperparams.data_embedding_file,
-            hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_unk,
-            hyperparams.data_word_pad, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
+            hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_sos,
+            hyperparams.data_word_eos, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
@@ -68,8 +68,8 @@ def create_eval_model(logger,
             char_vocab_size, char_vocab_index, char_vocab_inverted_index) = prepare_data(logger,
             hyperparams.data_eval_file, hyperparams.data_word_vocab_file, hyperparams.data_word_vocab_size,
             hyperparams.data_word_vocab_threshold, hyperparams.model_word_embed_dim, hyperparams.data_embedding_file,
-            hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_unk,
-            hyperparams.data_word_pad, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
+            hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_sos,
+            hyperparams.data_word_eos, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
@@ -105,8 +105,8 @@ def create_decode_model(logger,
             char_vocab_size, char_vocab_index, char_vocab_inverted_index) = prepare_data(logger,
             hyperparams.data_eval_file, hyperparams.data_word_vocab_file, hyperparams.data_word_vocab_size,
             hyperparams.data_word_vocab_threshold, hyperparams.model_word_embed_dim, hyperparams.data_embedding_file,
-            hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_unk,
-            hyperparams.data_word_pad, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
+            hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_sos,
+            hyperparams.data_word_eos, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
@@ -142,8 +142,8 @@ def create_encode_model(logger,
             char_vocab_size, char_vocab_index, char_vocab_inverted_index) = prepare_data(logger,
             hyperparams.data_eval_file, hyperparams.data_word_vocab_file, hyperparams.data_word_vocab_size,
             hyperparams.data_word_vocab_threshold, hyperparams.model_word_embed_dim, hyperparams.data_embedding_file,
-            hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_unk,
-            hyperparams.data_word_pad, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
+            hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_sos,
+            hyperparams.data_word_eos, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
