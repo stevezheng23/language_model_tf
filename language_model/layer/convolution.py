@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from util.default_util import *
-from util.sequence_labeling_util import *
+from util.language_model_util import *
 
 from layer.basic import *
 

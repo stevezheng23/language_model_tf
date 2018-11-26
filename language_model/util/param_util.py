@@ -9,7 +9,7 @@ import tensorflow as tf
 
 __all__ = ["load_hyperparams", "generate_search_lookup", "search_hyperparams", "create_hyperparams_file"]
 
-def create_default_hyperparams():
+def create_default_hyperparams(config_type):
     """create default hyperparameters"""
     if config_type == "seq_lm":
         hyperparams = tf.contrib.training.HParams(
@@ -95,11 +95,12 @@ def create_default_hyperparams():
             model_fusion_trainable=True,
             model_sequence_num_layer=2,
             model_sequence_unit_dim=1024,
-            model_sequence_unit_type="lstm",
+            model_sequence_cell_type="lstm",
             model_sequence_hidden_activation="tanh",
             model_sequence_dropout=0.1,
             model_sequence_forget_bias=1.0,
             model_sequence_residual_connect=False,
+            model_sequence_trainable=False,
             model_projection_dropout=0.1,
             model_projection_trainable=True,
             model_encode_type="average",

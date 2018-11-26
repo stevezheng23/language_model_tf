@@ -4,62 +4,9 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import RNNCell
 
 from util.default_util import *
-from util.sequence_labeling_util import *
+from util.language_model_util import *
 
 __all__ = ["RNN", "BiRNN", "StackedRNN", "StackedBiRNN"]
-
-def _align_sequence(input_data,
-                    input_mask,
-                    alignment):
-    """align sequence"""
-    input_data_shape = tf.shape(input_data)
-    input_mask_shape = tf.shape(input_mask)
-    shape_size = len(input_data.get_shape().as_list())
-    if shape_size > 3:
-        input_data = tf.reshape(input_data, shape=tf.concat([[-1], input_data_shape[-2:]], axis=0))
-        input_mask = tf.reshape(input_mask, shape=tf.concat([[-1], input_mask_shape[-2:]], axis=0))
-    
-    if alignment > 0:
-        padding = tf.constant([[0, 0], [0, seq_align], [0, 0]])
-        output_mask = tf.pad(input_mask[:,seq_align:,:], padding)
-        output_data = tf.pad(input_data[:,seq_align:,:], padding) * output_mask
-    else
-        output_data = input_data
-        output_mask = input_mask
-    
-    if shape_size > 3:
-        output_data_shape = tf.shape(output_data)
-        output_mask_shape = tf.shape(output_mask)
-        output_data = tf.reshape(output_data,
-            shape=tf.concat([input_data_shape[:-2], output_data_shape[-2:]], axis=0))
-        output_mask = tf.reshape(output_mask,
-            shape=tf.concat([input_mask_shape[:-2], output_mask_shape[-2:]], axis=0))
-    
-    return output_data, output_mask
-
-def _reverse_sequence(input_data,
-                      input_mask):
-    """reverse sequence"""
-    input_data_shape = tf.shape(input_data)
-    input_mask_shape = tf.shape(input_mask)
-    shape_size = len(input_data.get_shape().as_list())
-    if shape_size > 3:
-        input_data = tf.reshape(input_data, shape=tf.concat([[-1], input_data_shape[-2:]], axis=0))
-        input_mask = tf.reshape(input_mask, shape=tf.concat([[-1], input_mask_shape[-2:]], axis=0))
-    
-    input_length = tf.cast(tf.reduce_sum(tf.squeeze(input_mask, axis=-1), axis=-1), dtype=tf.int32)
-    output_data = tf.reverse_sequence(input_data, input_length, seq_axis=1, batch_axis=0)
-    output_mask = input_mask
-    
-    if shape_size > 3:
-        output_data_shape = tf.shape(output_data)
-        output_mask_shape = tf.shape(output_mask)
-        output_data = tf.reshape(output_data,
-            shape=tf.concat([input_data_shape[:-2], output_data_shape[-2:]], axis=0))
-        output_mask = tf.reshape(output_mask,
-            shape=tf.concat([input_mask_shape[:-2], output_mask_shape[-2:]], axis=0))
-    
-    return output_data, output_mask
 
 def _extract_hidden_state(state,
                           cell_type):
@@ -334,9 +281,8 @@ class StackedRNN(object):
             for i in range(self.num_layer):
                 layer_scope = "layer_{0}".format(i)
                 layer_default_gpu_id = self.default_gpu_id + i
-                sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
-                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    dropout=self.dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
                     attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=layer_default_gpu_id,
                     random_seed=self.random_seed, trainable=self.trainable, scope=layer_scope)
                 self.recurrent_layer_list.append(recurrent_layer)
@@ -352,7 +298,8 @@ class StackedRNN(object):
             output_recurrent_list = []
             output_recurrent_mask_list = []
             for recurrent_layer in self.recurrent_layer_list:
-                output_recurrent, output_recurrent_mask = recurrent_layer(input_recurrent, input_recurrent_mask)
+                (output_recurrent, output_recurrent_mask,
+                    _, _) = recurrent_layer(input_recurrent, input_recurrent_mask)
                 output_recurrent_list.append(output_recurrent)
                 output_recurrent_mask_list.append(output_recurrent_mask)
                 input_recurrent = output_recurrent
@@ -399,13 +346,12 @@ class StackedBiRNN(object):
                 bwd_layer_scope = "bwd_layer_{0}".format(i)
                 fwd_layer_default_gpu_id = self.default_gpu_id + i
                 bwd_layer_default_gpu_id = self.default_gpu_id + self.num_layer + i
-                sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 fwd_recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
-                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    dropout=self.dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
                     attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=fwd_layer_default_gpu_id,
                     random_seed=self.random_seed, trainable=self.trainable, scope=fwd_layer_scope)
                 bwd_recurrent_layer = RNN(num_layer=1, unit_dim=self.unit_dim, cell_type=self.cell_type, activation=self.activation,
-                    dropout=sublayer_dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
+                    dropout=self.dropout, forget_bias=self.forget_bias, residual_connect=self.residual_connect,
                     attention_mechanism=self.attention_mechanism, num_gpus=self.num_gpus, default_gpu_id=bwd_layer_default_gpu_id,
                     random_seed=self.random_seed, trainable=self.trainable, scope=bwd_layer_scope)
                 self.fwd_recurrent_layer_list.append(fwd_recurrent_layer)
@@ -419,25 +365,26 @@ class StackedBiRNN(object):
         """call stacked bi-directional recurrent layer"""
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
             input_fwd_recurrent = input_data
-            input_bwd_recurrent = _reverse_sequence(input_data, input_mask)
             input_fwd_recurrent_mask = input_mask
-            input_bwd_recurrent_mask = input_mask
+            input_bwd_recurrent, input_bwd_recurrent_mask = reverse_sequence(input_data, input_mask)
             
             output_recurrent_list = []
             output_recurrent_mask_list = []
             for fwd_recurrent_layer, bwd_recurrent_layer in self.recurrent_layer_list:
-                output_fwd_recurrent, output_fwd_recurrent_mask = fwd_recurrent_layer(input_fwd_recurrent, input_fwd_recurrent_mask)
-                output_bwd_recurrent, output_bwd_recurrent_mask = bwd_recurrent_layer(input_bwd_recurrent, input_bwd_recurrent_mask)
+                (output_fwd_recurrent, output_fwd_recurrent_mask,
+                    _, _) = fwd_recurrent_layer(input_fwd_recurrent, input_fwd_recurrent_mask)
+                (output_bwd_recurrent, output_bwd_recurrent_mask,
+                    _, _) = bwd_recurrent_layer(input_bwd_recurrent, input_bwd_recurrent_mask)
                 input_fwd_recurrent = output_fwd_recurrent
                 input_bwd_recurrent = output_bwd_recurrent
                 input_fwd_recurrent_mask = output_fwd_recurrent_mask
                 input_bwd_recurrent_mask = output_bwd_recurrent_mask
                 
-                output_bwd_recurrent, output_bwd_recurrent_mask = _reverse_sequence(output_bwd_recurrent, output_bwd_recurrent_mask)
-                output_bwd_recurrent, output_bwd_recurrent_mask = _align_sequence(output_bwd_recurrent, output_bwd_recurrent_mask, 2)
+                output_bwd_recurrent, output_bwd_recurrent_mask = reverse_sequence(output_bwd_recurrent, output_bwd_recurrent_mask)
+                output_bwd_recurrent, output_bwd_recurrent_mask = align_sequence(output_bwd_recurrent, output_bwd_recurrent_mask, 2)
                 output_recurrent = tf.concat([output_fwd_recurrent, output_bwd_recurrent], axis=-1)
                 output_recurrent_mask = tf.reduce_max(tf.concat(
-                    [output_fwd_recurrent, output_bwd_recurrent], axis=-1), axis=-1, keepdims=True)
+                    [output_fwd_recurrent_mask, output_bwd_recurrent_mask], axis=-1), axis=-1, keepdims=True)
                 output_recurrent_list.append(output_recurrent)
                 output_recurrent_mask_list.append(output_recurrent_mask)
         
