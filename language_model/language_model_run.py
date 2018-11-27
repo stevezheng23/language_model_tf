@@ -54,7 +54,7 @@ def intrinsic_eval(logger,
     score = safe_exp(loss / word_count)
     eval_result = IntrinsicEvalLog(metric=metric, score=score, sample_size=sample_size)
     basic_info = BasicInfoEvalLog(epoch=epoch, global_step=global_step)
-    summary_writer.add_value_summary(metric, score, sample_size, epoch, global_step)
+    summary_writer.add_value_summary(metric, score, global_step)
     
     logger.update_intrinsic_eval(eval_result, basic_info)
     logger.check_intrinsic_eval()
@@ -107,7 +107,7 @@ def sample_decode(logger,
     
     decode_result = DecodeEvalLog(sample_decode_list=sample_decode_list)
     basic_info = BasicInfoEvalLog(epoch=epoch, global_step=global_step)
-    summary_writer.add_value_summary(len(sample_decode_list), epoch, global_step)
+    summary_writer.add_value_summary("sample_decode", sample_decode_list, global_step)
     
     logger.update_decode_eval(decode_result, basic_info)
     logger.check_decode_eval()
