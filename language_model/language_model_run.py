@@ -60,7 +60,6 @@ def intrinsic_eval(logger,
     logger.check_intrinsic_eval()
 
 def sample_decode(logger,
-                  summary_writer,
                   sess,
                   model,
                   input_data,
@@ -72,7 +71,7 @@ def sample_decode(logger,
                   ckpt_file,
                   eval_mode):
     np.random.seed(random_seed)
-    sample_index = np.random.randint(0, len(input_data)-1, size=sample_size)
+    sample_index = np.random.randint(0, len(input_data), size=sample_size)
     sample_data = [input_data[index] for index in sample_index]
     
     load_model(sess, model, ckpt_file, eval_mode)
@@ -95,7 +94,7 @@ def sample_decode(logger,
         
         sample_input_list.append(' '.join(sample_input[:sample_position] + ['(?)'] + sample_input[sample_position+1:]))
         sample_output_list.append(' '.join(sample_input[:sample_position] +
-            ['({0})'.format(output_data[sample_position].decode("utf-8"))] + sample_input[sample_position+1:]))
+            ['({0})'.format(sample_output[sample_position].decode("utf-8"))] + sample_input[sample_position+1:]))
         sample_reference_list.append(' '.join(sample_input[:sample_position] +
             ['({0})'.format(sample_input[sample_position])] + sample_input[sample_position+1:]))
     
@@ -103,17 +102,15 @@ def sample_decode(logger,
         "sample_input": sample_input,
         "sample_output": sample_output,
         "sample_reference": sample_reference
-    } for sample_input, sampel_output, sample_reference in list(zip(sample_input_list, sample_output_list, sample_reference_list))]
+    } for sample_input, sample_output, sample_reference in list(zip(sample_input_list, sample_output_list, sample_reference_list))]
     
     decode_result = DecodeEvalLog(sample_decode_list=sample_decode_list)
     basic_info = BasicInfoEvalLog(epoch=epoch, global_step=global_step)
-    summary_writer.add_value_summary("sample_decode", sample_decode_list, global_step)
     
-    logger.update_decode_eval(decode_result, basic_info)
-    logger.check_decode_eval()
+    logger.update_sample_decode(decode_result, basic_info)
+    logger.check_sample_decode()
 
 def sample_encode(logger,
-                  summary_writer,
                   sess,
                   model,
                   input_data,
@@ -223,8 +220,8 @@ def train(logger,
                     intrinsic_eval(eval_logger, eval_summary_writer,
                         eval_sess, eval_model, eval_model.input_data, eval_model.word_embedding,
                         hyperparams.train_eval_batch_size, global_step, epoch, ckpt_file, "debug")
-                    sample_decode(eval_logger, decode_summary_writer, decode_sess, decode_model,
-                        decode_model.input_data, decode_model.word_embedding, hyperparams.train_decode_sample_size,
+                    sample_decode(eval_logger, decode_sess, decode_model, decode_model.input_data,
+                        decode_model.word_embedding, hyperparams.train_decode_sample_size,
                         hyperparams.train_random_seed + global_step, global_step, epoch, ckpt_file, "debug")
             except tf.errors.OutOfRangeError:
                 train_logger.check()
@@ -235,15 +232,14 @@ def train(logger,
                     intrinsic_eval(eval_logger, eval_summary_writer,
                         eval_sess, eval_model, eval_model.input_data, eval_model.word_embedding,
                         hyperparams.train_eval_batch_size, global_step, epoch, ckpt_file, "epoch")
-                    sample_decode(eval_logger, decode_summary_writer, decode_sess, decode_model,
-                        decode_model.input_data, decode_model.word_embedding, hyperparams.train_decode_sample_size,
+                    sample_decode(eval_logger, decode_sess, decode_model, decode_model.input_data,
+                        decode_model.word_embedding, hyperparams.train_decode_sample_size,
                         hyperparams.train_random_seed + global_step, global_step, epoch, ckpt_file, "epoch")
                 break
-
+    
     train_summary_writer.close_writer()
     if enable_eval == True:
         eval_summary_writer.close_writer()
-        decode_summary_writer.close_writer()
     
     logger.log_print("##### finish training #####")
 
@@ -271,7 +267,6 @@ def evaluate(logger,
         decode_sess = tf_debug.LocalCLIDebugWrapperSession(decode_sess)
     
     eval_summary_writer = SummaryWriter(eval_model.graph, os.path.join(summary_output_dir, "eval"))
-    decode_summary_writer = SummaryWriter(decode_model.graph, os.path.join(summary_output_dir, "decode"))
     
     init_model(eval_sess, eval_model)
     init_model(decode_sess, decode_model)
@@ -285,12 +280,11 @@ def evaluate(logger,
         intrinsic_eval(eval_logger, eval_summary_writer,
             eval_sess, eval_model, eval_model.input_data, eval_model.word_embedding,
             hyperparams.train_eval_batch_size, i, i, ckpt_file, eval_mode)
-        sample_decode(eval_logger, decode_summary_writer, decode_sess, decode_model,
-            decode_model.input_data, decode_model.word_embedding, hyperparams.train_decode_sample_size,
+        sample_decode(eval_logger, decode_sess, decode_model, decode_model.input_data,
+            decode_model.word_embedding, hyperparams.train_decode_sample_size,
             hyperparams.train_random_seed, i, i, ckpt_file, eval_mode)
     
     eval_summary_writer.close_writer()
-    decode_summary_writer.close_writer()
     logger.log_print("##### finish evaluation #####")
 
 def encode(logger,
@@ -311,7 +305,6 @@ def encode(logger,
     if enable_debug == True:
         encode_sess = tf_debug.LocalCLIDebugWrapperSession(encode_sess)
     
-    encode_summary_writer = SummaryWriter(encode_model.graph, os.path.join(summary_output_dir, "encode"))
     init_model(encode_sess, encode_model)
     
     result_writer = ResultWriter(hyperparams.data_result_output_dir)
@@ -319,11 +312,10 @@ def encode(logger,
     logger.log_print("##### start encoding #####")
     encode_mode = "debug" if enable_debug == True else "epoch"
     ckpt_file = encode_model.model.get_latest_ckpt(encode_mode)
-    sample_encode(result_writer, encode_summary_writer,
-        encode_sess, encode_model, encode_model.input_data, encode_model.word_embedding,
+    sample_encode(result_writer, encode_sess, encode_model,
+        encode_model.input_data, encode_model.word_embedding,
         hyperparams.train_encode_batch_size, 0, 0, ckpt_file, eval_mode)
     
-    encode_summary_writer.close_writer()
     logger.log_print("##### finish encoding #####")
 
 def main(args):
