@@ -1,10 +1,10 @@
 {
     "data_train_file": "data/lm/train-debug/train-debug.lm.txt",
-    "data_eval_sequence_file": "data/lm/dev-debug/dev-debug.lm.txt",
+    "data_eval_file": "data/lm/dev-debug/dev-debug.lm.txt",
     "data_embedding_file": "data/lm/resource/lm.word.embed",
     "data_full_embedding_file": "data/glove/glove.840B.300d.txt",
-    "data_text_word_size": 512,
-    "data_text_char_size": 16,
+    "data_max_word_size": 512,
+    "data_max_char_size": 16,
     "data_word_vocab_file": "data/lm/resource/lm.word.vocab",
     "data_word_vocab_size": 1000000,
     "data_word_vocab_threshold": 0,
