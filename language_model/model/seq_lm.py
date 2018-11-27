@@ -57,7 +57,7 @@ class SequenceLM(BaseModel):
                 softmax_predict = softmax_with_mask(predict, predict_mask, axis=-1)
                 index_predict = tf.argmax(softmax_predict, axis=-1, output_type=tf.int64)
                 self.decode_predict = self.word_vocab_invert_index.lookup(index_predict)
-                self.decode_mask = predict_mask
+                self.decode_sequence_length = tf.cast(tf.reduce_sum(predict_mask, axis=[-1, -2]), dtype=tf.int32)
             
             if self.mode in ["eval", "train"]:
                 """compute optimization loss"""
