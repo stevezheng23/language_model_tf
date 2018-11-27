@@ -193,12 +193,16 @@ class BaseModel(object):
         word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
         
         if word_embed_pretrained == True:
-            decode_output, sequence_length, batch_size = sess.run([self.decode_output, self.sequence_length, self.batch_size],
+            (decode_predict, decode_sequence_length,
+                batch_size) = sess.run([self.decode_predict, self.decode_sequence_length, self.batch_size],
                 feed_dict={self.word_embedding_placeholder: word_embedding})
         else:
-            decode_output, sequence_length, batch_size = sess.run([self.decode_output, self.sequence_length, self.batch_size])
+            (decode_predict, decode_sequence_length,
+                batch_size) = sess.run([self.decode_predict, self.decode_sequence_length, self.batch_size])
         
-        return DecodeResult(decode_output=decode_output, sequence_length=sequence_length, batch_size=batch_size)
+        decode_output = [predict[:sequence_length] for predict, sequence_length in list(zip(decode_predict, decode_sequence_length))]
+        
+        return DecodeResult(decode_output=decode_output, sequence_length=decode_sequence_length, batch_size=batch_size)
     
     def encode(self,
                sess,
