@@ -6,7 +6,10 @@ import time
 import numpy as np
 import tensorflow as tf
 
-__all__ = ["IntrinsicEvalLog", "DecodeEvalLog", "EvalLogger"]
+__all__ = ["BasicInfoEvalLog", "IntrinsicEvalLog", "DecodeEvalLog", "EvalLogger"]
+
+class BasicInfoEvalLog(collections.namedtuple("BasicInfoEvalLog", ("epoch", "global_step"))):
+    pass
 
 class IntrinsicEvalLog(collections.namedtuple("IntrinsicEvalLog", ("metric", "score", "sample_size"))):
     pass
