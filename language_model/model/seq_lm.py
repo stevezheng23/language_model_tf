@@ -289,7 +289,7 @@ class SequenceLM(BaseModel):
         masked_label = tf.cast(label * label_mask, dtype=tf.int32)
         onehot_label = generate_onehot_label(masked_label, tf.shape(predict)[-1])
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=masked_predict, labels=onehot_label)
-        loss = tf.reduce_sum(cross_entropy) * predict_mask / tf.cast(self.batch_size, dtype=tf.float32)
+        loss = tf.reduce_sum(cross_entropy * tf.squeeze(predict_mask, axis=-1)) / tf.reduce_sum(predict_mask)
         return loss
     
     def save(self,
