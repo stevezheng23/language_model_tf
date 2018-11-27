@@ -383,7 +383,7 @@ class StackedBiRNN(object):
                 output_bwd_recurrent, output_bwd_recurrent_mask = reverse_sequence(output_bwd_recurrent, output_bwd_recurrent_mask)
                 output_bwd_recurrent, output_bwd_recurrent_mask = align_sequence(output_bwd_recurrent, output_bwd_recurrent_mask, 2)
                 output_recurrent = tf.concat([output_fwd_recurrent, output_bwd_recurrent], axis=-1)
-                output_recurrent_mask = tf.reduce_max(tf.concat(
+                output_recurrent_mask = tf.reduce_min(tf.concat(
                     [output_fwd_recurrent_mask, output_bwd_recurrent_mask], axis=-1), axis=-1, keepdims=True)
                 output_recurrent_list.append(output_recurrent)
                 output_recurrent_mask_list.append(output_recurrent_mask)
