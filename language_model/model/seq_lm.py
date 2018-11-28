@@ -25,7 +25,7 @@ class SequenceLM(BaseModel):
             data_pipeline=data_pipeline, mode=mode, scope=scope)
         
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-            """get batch inputs from data pipeline"""
+            """get batch input"""
             text_word = self.data_pipeline.input_text_word
             text_word_mask = self.data_pipeline.input_text_word_mask
             text_char = self.data_pipeline.input_text_char
@@ -35,16 +35,38 @@ class SequenceLM(BaseModel):
             self.char_vocab_size = self.data_pipeline.char_vocab_size
             self.sequence_length = tf.cast(tf.reduce_sum(text_word_mask, axis=[-1, -2]), dtype=tf.int32)
             
-            """build graph for sequence language model"""
-            self.logger.log_print("# build graph")
-            predict, predict_mask = self._build_graph(text_word, text_word_mask, text_char, text_char_mask)
+            """build graph"""
+            if self.mode in ["train", "eval", "decode"]:
+                self.logger.log_print("# build graph")
+                predict, predict_mask = self._build_graph(text_word, text_word_mask, text_char, text_char_mask)
+                
+                label = tf.cast(text_word, dtype=tf.float32)
+                label_mask = text_word_mask
+                label, label_mask = align_sequence(label, label_mask, 1)
+                label, label_mask = reverse_sequence(label, label_mask)
+                label, label_mask = align_sequence(label, label_mask, 1)
+                label, label_mask = reverse_sequence(label, label_mask)
             
-            label = tf.cast(text_word, dtype=tf.float32)
-            label_mask = text_word_mask
-            label, label_mask = align_sequence(label, label_mask, 1)
-            label, label_mask = reverse_sequence(label, label_mask)
-            label, label_mask = align_sequence(label, label_mask, 1)
-            label, label_mask = reverse_sequence(label, label_mask)
+            """build encode graph"""
+            if self.mode == "encode":
+                self.logger.log_print("# build encode graph")
+                result, result_mask = self._build_encode_graph(text_word, text_word_mask, text_char, text_char_mask)
+                self.encode_result = result
+                self.encode_sequence_length = tf.cast(tf.reduce_sum(result_mask, axis=[-1, -2]), dtype=tf.int32)
+            
+            """compute loss"""
+            if self.mode in ["train", "eval"]:
+                self.logger.log_print("# setup loss computation mechanism")
+                loss = self._compute_loss(label, label_mask, predict, predict_mask)
+                
+                if self.hyperparams.train_regularization_enable == True:
+                    regularization_variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                    regularization_loss = tf.contrib.layers.apply_regularization(self.regularizer, regularization_variables)
+                    loss = loss + regularization_loss
+                
+                self.train_loss = loss
+                self.eval_loss = loss
+                self.word_count = tf.reduce_sum(self.sequence_length)
             
             self.variable_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
             self.variable_lookup = {v.op.name: v for v in self.variable_list}
@@ -53,32 +75,18 @@ class SequenceLM(BaseModel):
                 self.ema = tf.train.ExponentialMovingAverage(decay=self.hyperparams.train_ema_decay_rate)
                 self.variable_lookup = {self.ema.average_name(v): v for v in self.variable_list}
             
+            """decode output"""
             if self.mode == "decode":
                 softmax_predict = softmax_with_mask(predict, predict_mask, axis=-1)
                 index_predict = tf.argmax(softmax_predict, axis=-1, output_type=tf.int64)
                 self.decode_predict = self.word_vocab_invert_index.lookup(index_predict)
                 self.decode_sequence_length = tf.cast(tf.reduce_sum(predict_mask, axis=[-1, -2]), dtype=tf.int32)
             
-            if self.mode in ["eval", "train"]:
-                """compute optimization loss"""
-                self.logger.log_print("# setup loss computation mechanism")
-                loss = self._compute_loss(label, label_mask, predict, predict_mask)
-                
-                if self.hyperparams.train_regularization_enable == True:
-                    regularization_variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-                    regularization_loss = tf.contrib.layers.apply_regularization(self.regularizer, regularization_variables)
-                    loss = loss + regularization_loss
-            
-            if self.mode == "eval":
-                self.eval_loss = loss
-                self.word_count = tf.reduce_sum(self.sequence_length)
-            
+            """apply training"""
             if self.mode == "train":
-                self.train_loss = loss
                 self.global_step = tf.get_variable("global_step", shape=[], dtype=tf.int32,
                     initializer=tf.zeros_initializer, trainable=False)
                 
-                """apply learning rate warm-up & decay"""
                 self.logger.log_print("# setup initial learning rate mechanism")
                 self.initial_learning_rate = tf.constant(self.hyperparams.train_optimizer_learning_rate)
                 
@@ -96,11 +104,9 @@ class SequenceLM(BaseModel):
                 
                 self.learning_rate = self.decayed_learning_rate
                 
-                """initialize optimizer"""
                 self.logger.log_print("# setup training optimizer")
                 self.optimizer = self._initialize_optimizer(self.learning_rate)
                 
-                """minimize optimization loss"""
                 self.logger.log_print("# setup loss minimization mechanism")
                 self.update_model, self.clipped_gradients, self.gradient_norm = self._minimize_loss(self.train_loss)
                 
@@ -111,7 +117,6 @@ class SequenceLM(BaseModel):
                 else:
                     self.update_op = self.update_model
                 
-                """create train summary"""
                 self.train_summary = self._get_train_summary()
             
             """create checkpoint saver"""
@@ -243,8 +248,8 @@ class SequenceLM(BaseModel):
         random_seed = self.hyperparams.train_random_seed
         
         with tf.variable_scope("output", reuse=tf.AUTO_REUSE):
-            text_modeling = text_modeling_list[0]
-            text_modeling_mask = text_modeling_mask_list[0]
+            text_modeling = text_modeling_list[-1]
+            text_modeling_mask = text_modeling_mask_list[-1]
             
             projection_layer = create_dense_layer("single", 1, self.word_vocab_size, 1, "", [projection_dropout], None,
                 False, False, False, self.num_gpus, self.default_gpu_id, self.regularizer, random_seed, projection_trainable)
@@ -256,6 +261,19 @@ class SequenceLM(BaseModel):
             text_output_mask = text_projection_mask
         
         return text_output, text_output_mask
+    
+    def _build_encode_layer(self,
+                            text_modeling_list,
+                            text_modeling_mask_list):
+        """build encode layer for sequence language model"""
+        encode_type = self.hyperparams.model_encode_type
+        encode_layer_list = self.hyperparams.model_encode_layer_list
+        
+        with tf.variable_scope("encode", reuse=tf.AUTO_REUSE):
+            text_encode = text_modeling_list[-1]
+            text_encode_mask = text_modeling_mask_list[-1]
+        
+        return text_encode, text_encode_mask
     
     def _build_graph(self,
                      text_word,
@@ -278,6 +296,28 @@ class SequenceLM(BaseModel):
             predict_mask = text_output_mask
         
         return predict, predict_mask
+    
+    def _build_encode_graph(self,
+                            text_word,
+                            text_word_mask,
+                            text_char,
+                            text_char_mask):
+        """build encode graph for sequence language model"""
+        with tf.variable_scope("graph", reuse=tf.AUTO_REUSE):
+            """build representation layer for sequence language model"""
+            text_feat, text_feat_mask = self._build_representation_layer(text_word,
+                text_word_mask, text_char, text_char_mask)
+            
+            """build modeling layer for sequence language model"""
+            text_modeling_list, text_modeling_mask_list = self._build_modeling_layer(text_feat, text_feat_mask)
+            
+            """build encoding layer for sequence language model"""
+            text_encode, text_encode_mask = self._build_encode_layer(text_modeling_list, text_modeling_mask_list)
+            
+            result = text_encode
+            result_mask = text_encode_mask
+        
+        return result, result_mask
     
     def _compute_loss(self,
                       label,
