@@ -110,11 +110,13 @@ def sample_decode(logger,
     logger.update_sample_decode(decode_result, basic_info)
     logger.check_sample_decode()
 
-def sample_encode(logger,
+def sample_encode(result_writer,
                   sess,
                   model,
                   input_data,
                   word_embedding,
+                  encode_type,
+                  encode_layer_list,
                   batch_size,
                   global_step,
                   epoch,
@@ -132,10 +134,10 @@ def sample_encode(logger,
         try:
             encode_result = model.model.encode(sess, word_embedding)
             encode_result_batch = [{
-                "sample_encode": list(encode_result.encode_output[i,:encode_result.sequence_length[i],:]),
-                "sequence_length": encode_result.sequence_length[i],
-                "encode_type": hyperparams.model_encode_type,
-                "encode_layer_list": hyperparams.model_encode_layer_list
+                "sample_encode": list(encode_result.encode_output[i].tolist()),
+                "sequence_length": int(encode_result.sequence_length[i]),
+                "encode_type": encode_type,
+                "encode_layer_list": encode_layer_list
             } for i in range(encode_result.batch_size)]
             
             encode_result_list.extend(encode_result_batch)
@@ -144,10 +146,6 @@ def sample_encode(logger,
     
     if data_size != len(encode_result_list):
         raise ValueError("encode result size is not equal to input data size")
-    
-    encode_result_list = [{
-        "sample": encoding_sample[i]
-    } for i in range(data_size)]
     
     result_writer.write_result(encode_result_list, "encode", "{0}_{1}".format(global_step, epoch))
 
@@ -312,9 +310,9 @@ def encode(logger,
     logger.log_print("##### start encoding #####")
     encode_mode = "debug" if enable_debug == True else "epoch"
     ckpt_file = encode_model.model.get_latest_ckpt(encode_mode)
-    sample_encode(result_writer, encode_sess, encode_model,
-        encode_model.input_data, encode_model.word_embedding,
-        hyperparams.train_encode_batch_size, 0, 0, ckpt_file, eval_mode)
+    sample_encode(result_writer, encode_sess, encode_model, encode_model.input_data,
+        encode_model.word_embedding, hyperparams.model_encode_type, hyperparams.model_encode_layer_list,
+        hyperparams.train_encode_batch_size, 0, 0, ckpt_file, encode_mode)
     
     logger.log_print("##### finish encoding #####")
 
