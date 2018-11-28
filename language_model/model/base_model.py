@@ -211,12 +211,16 @@ class BaseModel(object):
         word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
         
         if word_embed_pretrained == True:
-            encode_output, sequence_length, batch_size = sess.run([self.encode_output, self.sequence_length, self.batch_size],
+            (encode_result, encode_sequence_length,
+                batch_size) = sess.run([self.encode_result, self.encode_sequence_length, self.batch_size],
                 feed_dict={self.word_embedding_placeholder: word_embedding})
         else:
-            encode_output, sequence_length, batch_size = sess.run([self.encode_output, self.sequence_length, self.batch_size])
+            (encode_result, encode_sequence_length,
+                batch_size) = sess.run([self.encode_result, self.encode_sequence_length, self.batch_size])
         
-        return EncodeResult(encode_output=encode_output, sequence_length=sequence_length, batch_size=batch_size)
+        encode_output = [result[:sequence_length] for result, sequence_length in list(zip(encode_result, encode_sequence_length))]
+        
+        return EncodeResult(encode_output=encode_output, sequence_length=encode_sequence_length, batch_size=batch_size)
     
     def _get_train_summary(self):
         """get train summary"""
