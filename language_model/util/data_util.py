@@ -305,19 +305,20 @@ def process_vocab_table(vocab,
     if unk == pad:
         raise ValueError("unknown vocab {0} can not be the same as padding vocab {1}".format(unk, pad))
     
-    default_vocab = []
+    default_vocab = [unk, pad]
+    if sos:
+        default_vocab.append(sos)
+    if eos:
+        default_vocab.append(eos)
+    
     if unk in vocab:
         del vocab[unk]
-        default_vocab.append(unk)
     if pad in vocab:
         del vocab[pad]
-        default_vocab.append(pad)
     if sos and sos in vocab:
         del vocab[sos]
-        default_vocab.append(sos)
     if eos and eos in vocab:
         del vocab[eos]
-        default_vocab.append(eos)
     
     vocab = { k: vocab[k] for k in vocab.keys() if vocab[k] >= vocab_threshold }
     if vocab_lookup is not None:
