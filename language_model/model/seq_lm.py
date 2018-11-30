@@ -66,7 +66,7 @@ class SequenceLM(BaseModel):
                 
                 self.train_loss = loss
                 self.eval_loss = loss
-                self.word_count = tf.reduce_sum(self.sequence_length)
+                self.word_count = tf.reduce_sum(predict_mask)
             
             self.variable_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
             self.variable_lookup = {v.op.name: v for v in self.variable_list}
@@ -329,7 +329,7 @@ class SequenceLM(BaseModel):
         masked_label = tf.cast(label * label_mask, dtype=tf.int32)
         onehot_label = generate_onehot_label(masked_label, tf.shape(predict)[-1])
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=masked_predict, labels=onehot_label)
-        loss = tf.reduce_sum(cross_entropy * tf.squeeze(predict_mask, axis=-1)) / tf.reduce_sum(predict_mask)
+        loss = tf.reduce_sum(cross_entropy * tf.squeeze(predict_mask, axis=-1)) / tf.cast(self.batch_size, dtype=tf.float32)
         return loss
     
     def save(self,
