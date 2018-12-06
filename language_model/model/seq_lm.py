@@ -78,7 +78,8 @@ class SequenceLM(BaseModel):
             """decode output"""
             if self.mode == "decode":
                 softmax_predict = softmax_with_mask(predict, predict_mask, axis=-1)
-                index_predict = tf.argmax(softmax_predict, axis=-1, output_type=tf.int64)
+                index_predict = tf.squeeze(generate_multinomial(softmax_predict,
+                    num_samples=1, random_seed=self.random_seed, output_type=tf.int64), axis=-1)
                 self.decode_predict = self.word_vocab_invert_index.lookup(index_predict)
                 self.decode_sequence_length = tf.cast(tf.reduce_sum(predict_mask, axis=[-1, -2]), dtype=tf.int32)
             
