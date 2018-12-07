@@ -280,7 +280,7 @@ def evaluate(logger,
             hyperparams.train_eval_batch_size, i, i, ckpt_file, eval_mode)
         sample_decode(eval_logger, decode_sess, decode_model, decode_model.input_data,
             decode_model.word_embedding, hyperparams.train_decode_sample_size,
-            hyperparams.train_random_seed, i, i, ckpt_file, eval_mode)
+            hyperparams.train_random_seed + i, i, i, ckpt_file, eval_mode)
     
     eval_summary_writer.close_writer()
     logger.log_print("##### finish evaluation #####")
