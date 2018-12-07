@@ -103,7 +103,7 @@ def create_default_hyperparams(config_type):
             model_sequence_trainable=False,
             model_projection_dropout=0.1,
             model_projection_trainable=True,
-            model_encode_type="average",
+            model_encode_type="avg",
             model_encode_layer_list=[0,1],
             model_decode_sampling_type="arg_max",
             device_num_gpus=1,

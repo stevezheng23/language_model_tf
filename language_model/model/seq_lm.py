@@ -269,11 +269,26 @@ class SequenceLM(BaseModel):
                             text_modeling_mask_list):
         """build encode layer for sequence language model"""
         encode_type = self.hyperparams.model_encode_type
-        encode_layer_list = self.hyperparams.model_encode_layer_list
+        encode_layer_list = sorted(self.hyperparams.model_encode_layer_list)
         
         with tf.variable_scope("encode", reuse=tf.AUTO_REUSE):
-            text_encode = text_modeling_list[-1]
-            text_encode_mask = text_modeling_mask_list[-1]
+            text_encode_list = []
+            text_encode_mask_list = []
+            num_layer = len(list(zip(text_modeling_list, text_modeling_mask_list)))
+            for i in encode_layer_list:
+                if i >= num_layer:
+                    continue
+                
+                text_modeling = tf.expand_dims(text_modeling_list[i], axis=-2)
+                text_modeling_mask = tf.expand_dims(text_modeling_mask_list[i], axis=-2)
+                text_encode_list.append(text_modeling)
+                text_encode_mask_list.append(text_modeling_mask)
+            
+            pooling_layer = create_pooling_layer(encode_type, -1, 1, 0, 0)
+            
+            text_encode = tf.concat(text_encode_list, axis=-2)
+            text_encode_mask = tf.concat(text_encode_mask_list, axis=-2)
+            text_encode, text_encode_mask = pooling_layer(text_encode, text_encode_mask)
         
         return text_encode, text_encode_mask
     
