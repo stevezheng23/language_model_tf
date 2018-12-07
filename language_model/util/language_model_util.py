@@ -4,7 +4,8 @@ import tensorflow as tf
 from util.default_util import *
 
 __all__ = ["create_variable_initializer", "create_weight_regularizer", "create_activation_function",
-           "softmax_with_mask", "generate_masked_data", "generate_onehot_label", "align_sequence", "reverse_sequence"]
+           "softmax_with_mask", "generate_masked_data", "generate_onehot_label",
+           "generate_multinomial", "align_sequence", "reverse_sequence"]
 
 def create_variable_initializer(initializer_type,
                                 random_seed=None,
@@ -87,6 +88,25 @@ def generate_onehot_label(input_data,
                           input_depth):
     """generate one-hot label"""
     return tf.one_hot(input_data, depth=input_depth, on_value=1.0, off_value=0.0, dtype=tf.float32)
+
+def generate_multinomial(input_data,
+                         num_samples,
+                         random_seed,
+                         output_type):
+    """generate multi-nomial"""
+    input_data_shape = tf.shape(input_data)
+    shape_size = len(input_data.get_shape().as_list())
+    if shape_size > 2:
+        input_data = tf.reshape(input_data, shape=tf.concat([[-1], input_data_shape[-1:]], axis=0))
+    
+    output_data = tf.multinomial(input_data, num_samples=num_samples, seed=random_seed, output_dtype=output_type)
+    
+    if shape_size > 2:
+        output_data_shape = tf.shape(output_data)
+        output_data = tf.reshape(output_data,
+            shape=tf.concat([input_data_shape[:-1], output_data_shape[-1:]], axis=0))
+    
+    return output_data
 
 def align_sequence(input_data,
                    input_mask,

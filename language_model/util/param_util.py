@@ -105,6 +105,7 @@ def create_default_hyperparams(config_type):
             model_projection_trainable=True,
             model_encode_type="average",
             model_encode_layer_list=[0,1],
+            model_decode_sampling_type="arg_max",
             device_num_gpus=1,
             device_default_gpu_id=0,
             device_log_device_placement=False,

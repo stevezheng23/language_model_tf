@@ -78,7 +78,12 @@ class SequenceLM(BaseModel):
             """decode output"""
             if self.mode == "decode":
                 softmax_predict = softmax_with_mask(predict, predict_mask, axis=-1)
-                index_predict = tf.argmax(softmax_predict, axis=-1, output_type=tf.int64)
+                if self.hyperparams.model_decode_sampling_type == "multi_nomial":
+                    index_predict = tf.squeeze(generate_multinomial(softmax_predict,
+                        num_samples=1, random_seed=self.random_seed, output_type=tf.int64), axis=-1)
+                else:
+                    index_predict = tf.argmax(softmax_predict, axis=-1, output_type=tf.int64)
+                
                 self.decode_predict = self.word_vocab_invert_index.lookup(index_predict)
                 self.decode_sequence_length = tf.cast(tf.reduce_sum(predict_mask, axis=[-1, -2]), dtype=tf.int32)
             
@@ -162,7 +167,6 @@ class SequenceLM(BaseModel):
         fusion_hidden_activation = self.hyperparams.model_fusion_hidden_activation
         fusion_dropout = self.hyperparams.model_fusion_dropout if self.mode == "train" else 0.0
         fusion_trainable = self.hyperparams.model_fusion_trainable
-        random_seed = self.hyperparams.train_random_seed
         
         with tf.variable_scope("representation", reuse=tf.AUTO_REUSE):
             text_feat_list = []
@@ -171,7 +175,7 @@ class SequenceLM(BaseModel):
             if word_feat_enable == True:
                 self.logger.log_print("# build word-level representation layer")
                 word_feat_layer = WordFeat(vocab_size=self.word_vocab_size, embed_dim=word_embed_dim,
-                    dropout=word_dropout, pretrained=word_embed_pretrained, random_seed=random_seed,
+                    dropout=word_dropout, pretrained=word_embed_pretrained, random_seed=self.random_seed,
                     feedable=True, trainable=word_feat_trainable)
                 
                 (text_word_feat,
@@ -190,7 +194,7 @@ class SequenceLM(BaseModel):
                 char_feat_layer = CharFeat(vocab_size=self.char_vocab_size, embed_dim=char_embed_dim, unit_dim=char_unit_dim,
                     window_size=char_window_size, activation=char_hidden_activation, pooling_type=char_pooling_type,
                     dropout=char_dropout, num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id,
-                    regularizer=self.regularizer, random_seed=random_seed, trainable=char_feat_trainable)
+                    regularizer=self.regularizer, random_seed=self.random_seed, trainable=char_feat_trainable)
                 
                 (text_char_feat,
                     text_char_feat_mask) = char_feat_layer(text_char, text_char_mask)
@@ -204,7 +208,7 @@ class SequenceLM(BaseModel):
             feat_fusion_layer = FusionModule(input_unit_dim=feat_unit_dim, output_unit_dim=fusion_unit_dim,
                 fusion_type=fusion_type, num_layer=fusion_num_layer, activation=fusion_hidden_activation,
                 dropout=fusion_dropout, num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id,
-                regularizer=self.regularizer, random_seed=random_seed, trainable=fusion_trainable)
+                regularizer=self.regularizer, random_seed=self.random_seed, trainable=fusion_trainable)
             
             text_feat, text_feat_mask = feat_fusion_layer(text_feat_list, text_feat_mask_list)
         
@@ -224,13 +228,12 @@ class SequenceLM(BaseModel):
         sequence_trainable = self.hyperparams.model_sequence_trainable
         projection_dropout = self.hyperparams.model_projection_dropout
         projection_trainable = self.hyperparams.model_projection_trainable
-        random_seed = self.hyperparams.train_random_seed
         
         with tf.variable_scope("modeling", reuse=tf.AUTO_REUSE):
             self.logger.log_print("# build sequence modeling layer")
             sequence_layer = create_recurrent_layer("stacked_bi", sequence_num_layer, sequence_unit_dim,
                 sequence_cell_type, sequence_hidden_activation, sequence_dropout, sequence_forget_bias,
-                sequence_residual_connect, None, self.num_gpus, self.default_gpu_id, random_seed, sequence_trainable)
+                sequence_residual_connect, None, self.num_gpus, self.default_gpu_id, self.random_seed, sequence_trainable)
             
             (text_sequence_list,
                 text_sequence_mask_list) = sequence_layer(text_feat, text_feat_mask)
@@ -245,14 +248,13 @@ class SequenceLM(BaseModel):
         """build output layer for sequence language model"""
         projection_dropout = self.hyperparams.model_projection_dropout
         projection_trainable = self.hyperparams.model_projection_trainable
-        random_seed = self.hyperparams.train_random_seed
         
         with tf.variable_scope("output", reuse=tf.AUTO_REUSE):
             text_modeling = text_modeling_list[-1]
             text_modeling_mask = text_modeling_mask_list[-1]
             
             projection_layer = create_dense_layer("single", 1, self.word_vocab_size, 1, "", [projection_dropout], None,
-                False, False, False, self.num_gpus, self.default_gpu_id, self.regularizer, random_seed, projection_trainable)
+                False, False, False, self.num_gpus, self.default_gpu_id, self.regularizer, self.random_seed, projection_trainable)
             
             (text_projection,
                 text_projection_mask) = projection_layer(text_modeling, text_modeling_mask)
