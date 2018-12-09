@@ -40,7 +40,7 @@ def create_train_model(logger,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
         logger.log_print("# create train text dataset")
-        text_dataset = tf.data.Dataset.from_tensor_slices(input_data)
+        text_dataset = tf.data.TextLineDataset([hyperparams.data_train_file])
         input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
             word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
             hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
