@@ -8,7 +8,7 @@ import tensorflow as tf
 from util.default_util import *
 
 __all__ = ["DataPipeline", "create_dynamic_pipeline", "create_data_pipeline",
-           "create_text_dataset", "generate_word_feat", "generate_char_feat",
+           "create_text_dataset", "get_text_dataset", "generate_word_feat", "generate_char_feat",
            "create_embedding_file", "load_embedding_file", "convert_embedding",
            "create_vocab_file", "load_vocab_file", "process_vocab_table",
            "create_word_vocab", "create_char_vocab", "load_data", "prepare_data"]
@@ -164,6 +164,20 @@ def create_text_dataset(input_data_set,
             word_max_size, word_sos, word_eos, char_vocab_index, char_max_size, char_pad))
     
     return word_dataset, char_dataset
+
+def get_text_dataset(input_path):
+    if tf.gfile.IsDirectory(input_path):
+        input_files = tf.gfile.ListDirectory(input_path)
+        input_files = [os.path.join(input_path, input_file) for input_file in input_files]
+    else:
+        if tf.gfile.Exists(input_path):
+            input_files = [input_path]
+        else:
+            raise FileNotFoundError("input file not found")
+    
+    text_dataset = tf.data.TextLineDataset(input_files)
+    
+    return text_dataset
 
 def generate_word_feat(sentence,
                        word_vocab_index,
@@ -363,21 +377,28 @@ def create_char_vocab(input_data):
     
     return char_vocab
 
-def load_data(input_file):
-    """load data from file"""
-    if tf.gfile.Exists(input_file):
-        text_data = []
+def load_data(input_path):
+    """load data from file/folder"""
+    if tf.gfile.IsDirectory(input_path):
+        input_files = tf.gfile.ListDirectory(input_path)
+        input_files = [os.path.join(input_path, input_file) for input_file in input_files]
+    else:
+        if tf.gfile.Exists(input_path):
+            input_files = [input_path]
+        else:
+            raise FileNotFoundError("input file not found")
+    
+    text_data = []
+    for input_file in input_files:
         with codecs.getreader("utf-8")(open(input_file, "rb")) as file:
             for line in file:
                 text = line.strip()
                 text_data.append(text)
-        
-        return text_data
-    else:
-        raise FileNotFoundError("input file not found")
+    
+    return text_data
 
 def prepare_data(logger,
-                 input_file,
+                 input_path,
                  word_vocab_file,
                  word_vocab_size,
                  word_vocab_threshold,
@@ -397,8 +418,8 @@ def prepare_data(logger,
                  char_pad,
                  char_feat_enable):
     """prepare data"""
-    logger.log_print("# loading input data from {0}".format(input_file))
-    input_data = load_data(input_file)
+    logger.log_print("# loading input data from {0}".format(input_path))
+    input_data = load_data(input_path)
     input_data_size = len(input_data)
     logger.log_print("# input data has {0} lines".format(input_data_size))
     
