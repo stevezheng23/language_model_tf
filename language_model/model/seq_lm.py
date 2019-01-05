@@ -46,6 +46,8 @@ class SequenceLM(BaseModel):
                 label, label_mask = reverse_sequence(label, label_mask)
                 label, label_mask = align_sequence(label, label_mask, 1)
                 label, label_mask = reverse_sequence(label, label_mask)
+                label = tf.squeeze(label, axis=-1)
+                label_mask = tf.squeeze(label_mask, axis=-1)
             
             """build encode graph"""
             if self.mode == "encode":
@@ -57,8 +59,7 @@ class SequenceLM(BaseModel):
             """compute loss"""
             if self.mode in ["train", "eval"]:
                 self.logger.log_print("# setup loss computation mechanism")
-                loss = self._compute_loss(label, label_mask,
-                    predict, predict_mask, self.hyperparams.train_label_smoothing)
+                loss = self._compute_loss(label, label_mask, predict, predict_mask, self.hyperparams.train_label_smoothing)
                 
                 if self.hyperparams.train_regularization_enable == True:
                     regularization_variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
