@@ -70,12 +70,11 @@ class SequenceLM(BaseModel):
                 self.eval_loss = loss
                 self.word_count = tf.reduce_sum(predict_mask)
             
-            self.variable_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-            self.variable_lookup = {v.op.name: v for v in self.variable_list}
-            
             if self.hyperparams.train_ema_enable == True:
-                self.ema = tf.train.ExponentialMovingAverage(decay=self.hyperparams.train_ema_decay_rate)
-                self.variable_lookup = {self.ema.average_name(v): v for v in self.variable_list}
+                self.ema = self._get_exponential_moving_average(self.global_step)
+                self.variable_list = self.ema.variables_to_restore(tf.trainable_variables())
+            else:
+                self.variable_list = tf.global_variables()
             
             """decode output"""
             if self.mode == "decode":
@@ -115,14 +114,13 @@ class SequenceLM(BaseModel):
                 self.optimizer = self._initialize_optimizer(self.learning_rate)
                 
                 self.logger.log_print("# setup loss minimization mechanism")
-                self.update_model, self.clipped_gradients, self.gradient_norm = self._minimize_loss(self.train_loss)
+                self.opt_op, self.clipped_gradients, self.gradient_norm = self._minimize_loss(self.train_loss)
                 
                 if self.hyperparams.train_ema_enable == True:
-                    with tf.control_dependencies([self.update_model]):
-                        self.update_op = self.ema.apply(self.variable_list)
-                        self.variable_lookup = {self.ema.average_name(v): self.ema.average(v) for v in self.variable_list}
+                    with tf.control_dependencies([self.opt_op]):
+                        self.update_op = self.ema.apply(tf.trainable_variables())
                 else:
-                    self.update_op = self.update_model
+                    self.update_op = self.opt_op
                 
                 self.train_summary = self._get_train_summary()
             
@@ -141,8 +139,14 @@ class SequenceLM(BaseModel):
             
             self.ckpt_debug_name = os.path.join(self.ckpt_debug_dir, "model_debug_ckpt")
             self.ckpt_epoch_name = os.path.join(self.ckpt_epoch_dir, "model_epoch_ckpt")
-            self.ckpt_debug_saver = tf.train.Saver(self.variable_lookup)
-            self.ckpt_epoch_saver = tf.train.Saver(self.variable_lookup, max_to_keep=self.hyperparams.train_num_epoch)
+            
+            if self.mode == "infer":
+                self.ckpt_debug_saver = tf.train.Saver(self.variable_list)
+                self.ckpt_epoch_saver = tf.train.Saver(self.variable_list, max_to_keep=self.hyperparams.train_num_epoch)  
+            
+            if self.mode == "train":
+                self.ckpt_debug_saver = tf.train.Saver()
+                self.ckpt_epoch_saver = tf.train.Saver(max_to_keep=self.hyperparams.train_num_epoch) 
     
     def _build_representation_layer(self,
                                     text_word,
