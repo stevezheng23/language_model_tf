@@ -50,6 +50,8 @@ def create_default_hyperparams(config_type):
             train_label_smoothing=0.0,
             train_ema_enable=False,
             train_ema_decay_rate=0.999,
+            train_ema_enable_debias=False,
+            train_ema_enable_dynamic_decay=False,
             train_regularization_enable=False,
             train_regularization_type="l2",
             train_regularization_scale=3e-7,
