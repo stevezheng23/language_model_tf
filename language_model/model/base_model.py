@@ -49,7 +49,6 @@ class BaseModel(object):
         self.word_embedding_placeholder = None
         
         self.batch_size = tf.size(tf.reduce_max(self.data_pipeline.input_text_word_mask, axis=[-1,-2]))
-        self.random_seed = self.hyperparams.train_random_seed
         
         self.num_gpus = self.hyperparams.device_num_gpus
         self.default_gpu_id = self.hyperparams.device_default_gpu_id
@@ -61,6 +60,8 @@ class BaseModel(object):
                 self.hyperparams.train_regularization_scale)
         else:
             self.regularizer = None
+        
+        self.random_seed = self.hyperparams.train_random_seed if self.hyperparams.train_enable_debugging else None
     
     def _get_exponential_moving_average(self,
                                         num_steps):
