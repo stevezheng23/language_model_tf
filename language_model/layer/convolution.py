@@ -78,12 +78,12 @@ class Conv1D(object):
                 input_conv = input_data
                 input_conv_mask = input_mask
             
-            input_conv, input_conv_mask = self.dropout_layer(input_conv, input_conv_mask)
-            
             if self.layer_norm == True:
                 input_conv, input_conv_mask = self.norm_layer(input_conv, input_conv_mask)
             
             input_conv = self.conv_layer(input_conv)
+            
+            input_conv, input_conv_mask = self.dropout_layer(input_conv, input_conv_mask)
             
             if self.residual_connect == True:
                 output_conv, output_mask = tf.cond(tf.random_uniform([]) < self.layer_dropout,
@@ -173,12 +173,12 @@ class Conv3D(object):
                 input_conv = input_data
                 input_conv_mask = input_mask
             
-            input_conv, input_conv_mask = self.dropout_layer(input_conv, input_conv_mask)
-            
             if self.layer_norm == True:
                 input_conv, input_conv_mask = self.norm_layer(input_conv, input_conv_mask)
             
             input_conv = self.conv_layer(input_conv)
+            
+            input_conv, input_conv_mask = self.dropout_layer(input_conv, input_conv_mask)
             
             if self.residual_connect == True:
                 output_conv, output_mask = tf.cond(tf.random_uniform([]) < self.layer_dropout,
@@ -275,8 +275,6 @@ class SeparableConv1D(object):
                 input_conv = input_data
                 input_conv_mask = input_mask
             
-            input_conv, input_conv_mask = self.dropout_layer(input_conv, input_conv_mask)
-            
             if self.layer_norm == True:
                 input_conv, input_conv_mask = self.norm_layer(input_conv, input_conv_mask)
             
@@ -289,6 +287,8 @@ class SeparableConv1D(object):
                 input_conv = input_conv + self.separable_bias
             if self.conv_activation != None:
                 input_conv = self.conv_activation(input_conv)
+            
+            input_conv, input_conv_mask = self.dropout_layer(input_conv, input_conv_mask)
             
             if self.residual_connect == True:
                 output_conv, output_mask = tf.cond(tf.random_uniform([]) < self.layer_dropout,
@@ -354,12 +354,11 @@ class MultiConv(object):
             self.conv_layer_list = []
             for i in range(len(self.window_size)):
                 layer_scope = "window_{0}".format(i)
-                layer_default_gpu_id = self.default_gpu_id + i
                 conv_layer = self.layer_creator(num_channel=self.num_channel, num_filter=self.num_filter,
                     window_size=self.window_size[i], stride_size=self.stride_size, padding_type=self.padding_type,
                     activation=self.activation, dropout=self.dropout, layer_dropout=self.layer_dropout,
                     layer_norm=self.layer_norm, residual_connect=self.residual_connect, use_bias=self.use_bias,
-                    num_gpus=self.num_gpus, default_gpu_id=layer_default_gpu_id, regularizer=self.regularizer, 
+                    num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id, regularizer=self.regularizer, 
                     random_seed=self.random_seed, trainable=self.trainable, scope=layer_scope)
                 self.conv_layer_list.append(conv_layer)
     
@@ -428,14 +427,13 @@ class StackedConv(object):
             self.conv_layer_list = []
             for i in range(self.num_layer):
                 layer_scope = "layer_{0}".format(i)
-                layer_default_gpu_id = self.default_gpu_id + i
                 sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 sublayer_layer_dropout = self.layer_dropout[i] if self.layer_dropout != None else 0.0
                 conv_layer = self.layer_creator(num_channel=self.num_channel, num_filter=self.num_filter,
                     window_size=self.window_size, stride_size=self.stride_size, padding_type=self.padding_type,
                     activation=self.activation, dropout=sublayer_dropout, layer_dropout=sublayer_layer_dropout,
                     layer_norm=self.layer_norm, residual_connect=self.residual_connect, use_bias=self.use_bias,
-                    num_gpus=self.num_gpus, default_gpu_id=layer_default_gpu_id, regularizer=self.regularizer,
+                    num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id, regularizer=self.regularizer,
                     random_seed=self.random_seed, trainable=self.trainable, scope=layer_scope)
                 self.conv_layer_list.append(conv_layer)
     
@@ -503,14 +501,13 @@ class StackedMultiConv(object):
             self.conv_layer_list = []
             for i in range(self.num_layer):
                 layer_scope = "layer_{0}".format(i)
-                layer_default_gpu_id = self.default_gpu_id + i
                 sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 sublayer_layer_dropout = self.layer_dropout[i] if self.layer_dropout != None else 0.0
                 conv_layer = MultiConv(layer_creator=self.layer_creator, num_channel=self.num_channel,
                     num_filter=self.num_filter, window_size=self.window_size, stride_size=self.stride_size, 
                     padding_type=self.padding_type, activation=self.activation, dropout=sublayer_dropout, 
                     layer_dropout=sublayer_layer_dropout, layer_norm=self.layer_norm, residual_connect=self.residual_connect,
-                    use_bias=self.use_bias, num_gpus=self.num_gpus, default_gpu_id=layer_default_gpu_id, regularizer=self.regularizer,
+                    use_bias=self.use_bias, num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id, regularizer=self.regularizer,
                     random_seed=self.random_seed, trainable=self.trainable, scope=layer_scope)
                 self.conv_layer_list.append(conv_layer)
     

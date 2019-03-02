@@ -62,15 +62,15 @@ class Dense(object):
             input_dense = input_data
             input_dense_mask = input_mask
             
-            input_dense, input_dense_mask = self.dropout_layer(input_dense, input_dense_mask)
-            
-            input_dense = self.dense_layer(input_dense)
-            
             if self.layer_norm == True:
                 input_dense, input_dense_mask = self.norm_layer(input_dense, input_dense_mask)
             
+            input_dense = self.dense_layer(input_dense)
+            
             if self.dense_activation != None:
                 input_dense = self.dense_activation(input_dense)
+            
+            input_dense, input_dense_mask = self.dropout_layer(input_dense, input_dense_mask)
             
             if self.residual_connect == True:
                 output_dense, output_mask = tf.cond(tf.random_uniform([]) < self.layer_dropout,
@@ -141,7 +141,8 @@ class DoubleDense(object):
             input_dense = input_data
             input_dense_mask = input_mask
             
-            input_dense, input_dense_mask = self.dropout_layer(input_dense, input_dense_mask)
+            if self.layer_norm == True:
+                input_dense, input_dense_mask = self.norm_layer(input_dense, input_dense_mask)
             
             input_dense = self.inner_dense_layer(input_dense)
             
@@ -150,8 +151,7 @@ class DoubleDense(object):
             
             input_dense = self.outer_dense_layer(input_dense)
             
-            if self.layer_norm == True:
-                input_dense, input_dense_mask = self.norm_layer(input_dense, input_dense_mask)
+            input_dense, input_dense_mask = self.dropout_layer(input_dense, input_dense_mask)
             
             if self.residual_connect == True:
                 output_dense, output_mask = tf.cond(tf.random_uniform([]) < self.layer_dropout,
@@ -201,13 +201,12 @@ class StackedDense(object):
             self.dense_layer_list = []
             for i in range(self.num_layer):
                 layer_scope = "layer_{0}".format(i)
-                layer_default_gpu_id = self.default_gpu_id + i
                 sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 sublayer_layer_dropout = self.layer_dropout[i] if self.layer_dropout != None else 0.0
                 dense_layer = Dense(unit_dim=self.unit_dim, activation=self.activation,
                     dropout=sublayer_dropout, layer_dropout=sublayer_layer_dropout, layer_norm=self.layer_norm,
                     residual_connect=self.residual_connect, use_bias=self.use_bias, num_gpus=self.num_gpus,
-                    default_gpu_id=layer_default_gpu_id, regularizer=self.regularizer, random_seed=self.random_seed,
+                    default_gpu_id=self.default_gpu_id, regularizer=self.regularizer, random_seed=self.random_seed,
                     trainable=self.trainable, scope=layer_scope)
                 self.dense_layer_list.append(dense_layer)
     
@@ -267,13 +266,12 @@ class StackedDoubleDense(object):
             self.dense_layer_list = []
             for i in range(self.num_layer):
                 layer_scope = "layer_{0}".format(i)
-                layer_default_gpu_id = self.default_gpu_id + i
                 sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 sublayer_layer_dropout = self.layer_dropout[i] if self.layer_dropout != None else 0.0
                 dense_layer = DoubleDense(unit_dim=self.unit_dim, inner_scale=self.inner_scale, activation=self.activation,
                     dropout=sublayer_dropout, layer_dropout=sublayer_layer_dropout, layer_norm=self.layer_norm,
                     residual_connect=self.residual_connect, use_bias=self.use_bias, num_gpus=self.num_gpus,
-                    default_gpu_id=layer_default_gpu_id, regularizer=self.regularizer, random_seed=self.random_seed,
+                    default_gpu_id=self.default_gpu_id, regularizer=self.regularizer, random_seed=self.random_seed,
                     trainable=self.trainable, scope=layer_scope)
                 self.dense_layer_list.append(dense_layer)
     
