@@ -181,7 +181,8 @@ class SequenceLM(BaseModel):
             if word_feat_enable == True:
                 self.logger.log_print("# build word-level representation layer")
                 word_feat_layer = WordFeat(vocab_size=self.word_vocab_size, embed_dim=word_embed_dim,
-                    dropout=word_dropout, pretrained=word_embed_pretrained, regularizer=self.regularizer,
+                    dropout=word_dropout, pretrained=word_embed_pretrained, embedding=None,
+                    num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id, regularizer=self.regularizer,
                     random_seed=self.random_seed, feedable=True, trainable=word_feat_trainable)
                 
                 (text_word_feat,
@@ -433,6 +434,9 @@ class WordFeat(object):
                  embed_dim,
                  dropout,
                  pretrained,
+                 embedding=None,
+                 num_gpus=1,
+                 default_gpu_id=0,
                  regularizer=None,
                  random_seed=0,
                  feedable=True,
@@ -443,6 +447,9 @@ class WordFeat(object):
         self.embed_dim = embed_dim
         self.dropout = dropout
         self.pretrained = pretrained
+        self.embedding = embedding
+        self.num_gpus = num_gpus
+        self.default_gpu_id = default_gpu_id
         self.regularizer = regularizer
         self.random_seed = random_seed
         self.feedable = feedable
@@ -450,10 +457,10 @@ class WordFeat(object):
         self.scope = scope
         
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
-            self.embedding_layer = create_embedding_layer(self.vocab_size,
-                self.embed_dim, self.pretrained, 0, 0, None, self.random_seed, self.feedable, self.trainable)
+            self.embedding_layer = create_embedding_layer(self.vocab_size, self.embed_dim, self.pretrained, self.embedding,
+                self.num_gpus, self.default_gpu_id, None, self.random_seed, self.feedable, self.trainable)
             
-            self.dropout_layer = create_dropout_layer(self.dropout, 0, 0, self.random_seed)
+            self.dropout_layer = create_dropout_layer(self.dropout, self.num_gpus, self.default_gpu_id, self.random_seed)
     
     def __call__(self,
                  input_word,
@@ -507,14 +514,16 @@ class CharFeat(object):
         self.scope = scope
         
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
-            self.embedding_layer = create_embedding_layer(self.vocab_size,
-                self.embed_dim, False, 0, 0, None, self.random_seed, False, self.trainable)
+            self.embedding_layer = create_embedding_layer(self.vocab_size, self.embed_dim, False, None,
+                self.num_gpus, self.default_gpu_id, None, self.random_seed, False, self.trainable)
             
             self.conv_layer = create_convolution_layer("stacked_multi_1d", 1, self.embed_dim,
                 self.unit_dim, self.window_size, 1, "SAME", self.activation, [self.dropout], None,
                 False, False, True, self.num_gpus, self.default_gpu_id, self.regularizer, self.random_seed, self.trainable)
             
-            self.pooling_layer = create_pooling_layer(self.pooling_type, -1, 1, 0, 0)
+            self.dropout_layer = create_dropout_layer(self.dropout, self.num_gpus, self.default_gpu_id, self.random_seed)
+            
+            self.pooling_layer = create_pooling_layer(self.pooling_type, -1, 1, self.num_gpus, self.default_gpu_id)
     
     def __call__(self,
                  input_char,
@@ -524,8 +533,12 @@ class CharFeat(object):
             input_char_embedding_mask = tf.expand_dims(input_char_mask, axis=-1)
             input_char_embedding = self.embedding_layer(input_char)
             
+            (input_char_dropout,
+                input_char_dropout_mask) = self.dropout_layer(input_char_embedding, input_char_embedding_mask)
+            
             (input_char_conv,
-                input_char_conv_mask) = self.conv_layer(input_char_embedding, input_char_embedding_mask)
+                input_char_conv_mask) = self.conv_layer(input_char_dropout, input_char_dropout_mask)
+            
             (input_char_pool,
                 input_char_pool_mask) = self.pooling_layer(input_char_conv, input_char_conv_mask)
             

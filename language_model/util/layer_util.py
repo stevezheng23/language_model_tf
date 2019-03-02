@@ -25,6 +25,7 @@ def create_dropout_layer(dropout,
 def create_embedding_layer(vocab_size,
                            embed_dim,
                            pretrained,
+                           embedding,
                            num_gpus,
                            default_gpu_id,
                            regularizer,
@@ -33,7 +34,7 @@ def create_embedding_layer(vocab_size,
                            trainable):
     """create embedding layer"""
     if pretrained == True:
-        embed_layer = PretrainedEmbedding(vocab_size=vocab_size, embed_dim=embed_dim,
+        embed_layer = PretrainedEmbedding(vocab_size=vocab_size, embed_dim=embed_dim, embedding=embedding,
             num_gpus=num_gpus, default_gpu_id=default_gpu_id, regularizer=regularizer, feedable=feedable, trainable=trainable)
     else:
         embed_layer = Embedding(vocab_size=vocab_size, embed_dim=embed_dim,
@@ -244,6 +245,7 @@ def create_attention_layer(attention_type,
                            src_dim,
                            trg_dim,
                            att_dim,
+                           num_head,
                            score_type,
                            dropout,
                            att_dropout,
@@ -284,7 +286,7 @@ def create_attention_layer(attention_type,
             external_matrix=external_matrix, num_gpus=num_gpus, default_gpu_id=default_gpu_id,
             regularizer=regularizer, random_seed=random_seed, trainable=trainable, scope=scope)
     elif attention_type == "multi_head_att":
-        attention_layer = MultiHeadAttention(src_dim=src_dim, trg_dim=trg_dim, att_dim=att_dim,
+        attention_layer = MultiHeadAttention(src_dim=src_dim, trg_dim=trg_dim, att_dim=att_dim, num_head=num_head,
             score_type=score_type, dropout=dropout, att_dropout=att_dropout, layer_dropout=layer_dropout,
             layer_norm=layer_norm, residual_connect=residual_connect, is_self=is_self,
             external_matrix=external_matrix, num_gpus=num_gpus, default_gpu_id=default_gpu_id, 
@@ -319,7 +321,7 @@ class AttentionMechanism(object):
         self.memory = memory
         self.memory_mask = memory_mask
         
-        self.attention_layer = create_attention_layer(attention_type, src_dim, trg_dim, att_dim,
+        self.attention_layer = create_attention_layer(attention_type, src_dim, trg_dim, att_dim, -1,
             score_type, dropout, att_dropout, layer_dropout, layer_norm, residual_connect, is_self,
             external_matrix, num_gpus, default_gpu_id, False, regularizer, random_seed, trainable)
     
