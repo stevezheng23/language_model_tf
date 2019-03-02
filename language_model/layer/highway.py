@@ -50,9 +50,7 @@ class Highway(object):
                  input_mask):
         """call highway layer"""
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE), tf.device(self.device_spec):
-            input_data, input_mask = self.dropout_layer(input_data, input_mask)
-            
-            transform = self.transform_layer(input_data)
+            transform, _ = self.dropout_layer(self.transform_layer(input_data), input_mask)
             gate = self.gate_layer(input_data)
             output_highway = transform * gate + input_data * (1 - gate)
             output_mask = input_mask
@@ -106,9 +104,7 @@ class ConvHighway(object):
                  input_mask):
         """call convolutional highway layer"""
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE), tf.device(self.device_spec):
-            input_data, input_mask = self.dropout_layer(input_data, input_mask)
-            
-            transform = self.transform_layer(input_data)
+            transform, _ = self.dropout_layer(self.transform_layer(input_data), input_mask)
             gate = self.gate_layer(input_data)
             output_highway = transform * gate + input_data * (1 - gate)
             output_mask = input_mask
@@ -145,10 +141,9 @@ class StackedHighway(object):
             self.highway_layer_list = []
             for i in range(self.num_layer):
                 layer_scope = "layer_{0}".format(i)
-                layer_default_gpu_id = self.default_gpu_id + i
                 sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 highway_layer = Highway(unit_dim=self.unit_dim, activation=self.activation,
-                    dropout=sublayer_dropout, num_gpus=self.num_gpus, default_gpu_id=layer_default_gpu_id,
+                    dropout=sublayer_dropout, num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id,
                     regularizer=self.regularizer, random_seed=self.random_seed, trainable=self.trainable, scope=layer_scope)
                 self.highway_layer_list.append(highway_layer)
     
@@ -200,10 +195,9 @@ class StackedConvHighway(object):
             self.highway_layer_list = []
             for i in range(self.num_layer):
                 layer_scope = "layer_{0}".format(i)
-                layer_default_gpu_id = self.default_gpu_id + i
                 sublayer_dropout = self.dropout[i] if self.dropout != None else 0.0
                 highway_layer = ConvHighway(num_filter=self.num_filter, window_size=self.window_size,
-                    activation=self.activation, dropout=sublayer_dropout, num_gpus=self.num_gpus, default_gpu_id=layer_default_gpu_id, 
+                    activation=self.activation, dropout=sublayer_dropout, num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id, 
                     regularizer=self.regularizer, random_seed=self.random_seed, trainable=self.trainable, scope=layer_scope)
                 self.highway_layer_list.append(highway_layer)
     
