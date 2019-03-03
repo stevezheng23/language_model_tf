@@ -17,6 +17,8 @@
     "data_char_vocab_threshold": 0,
     "data_char_unk": "*",
     "data_char_pad": "#",
+    "data_pipeline_mode": "default",
+    "data_num_parallel": 4,
     "data_log_output_dir": "output/seq_lm/log",
     "data_result_output_dir": "output/seq_lm/result",
     "train_random_seed": 100,

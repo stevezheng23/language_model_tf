@@ -18,11 +18,12 @@ class SequenceLM(BaseModel):
                  logger,
                  hyperparams,
                  data_pipeline,
+                 external_data,
                  mode="train",
                  scope="seq_lm"):
         """initialize sequence language model"""
         super(SequenceLM, self).__init__(logger=logger, hyperparams=hyperparams,
-            data_pipeline=data_pipeline, mode=mode, scope=scope)
+            data_pipeline=data_pipeline, external_data=external_data, mode=mode, scope=scope)
         
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             """get batch input"""
@@ -181,7 +182,7 @@ class SequenceLM(BaseModel):
             if word_feat_enable == True:
                 self.logger.log_print("# build word-level representation layer")
                 word_feat_layer = WordFeat(vocab_size=self.word_vocab_size, embed_dim=word_embed_dim,
-                    dropout=word_dropout, pretrained=word_embed_pretrained, embedding=None,
+                    dropout=word_dropout, pretrained=word_embed_pretrained, embedding=self.word_embedding,
                     num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id, regularizer=self.regularizer,
                     random_seed=self.random_seed, feedable=True, trainable=word_feat_trainable)
                 

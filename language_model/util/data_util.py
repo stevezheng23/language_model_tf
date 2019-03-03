@@ -30,6 +30,9 @@ def create_dynamic_pipeline(input_text_word_dataset,
                             char_vocab_index,
                             char_pad,
                             char_feat_enable,
+                            random_seed,
+                            enable_shuffle,
+                            buffer_size,
                             input_text_placeholder,
                             data_size_placeholder,
                             batch_size_placeholder):
@@ -50,6 +53,9 @@ def create_dynamic_pipeline(input_text_word_dataset,
         input_text_char_dataset = tf.data.Dataset.from_tensors(default_dataset_tensor).repeat(data_size_placeholder)
         
     dataset = tf.data.Dataset.zip((input_text_word_dataset, input_text_char_dataset))
+    
+    if enable_shuffle == True:
+        dataset = dataset.shuffle(buffer_size, random_seed)
     
     dataset = dataset.batch(batch_size=batch_size_placeholder)
     dataset = dataset.prefetch(buffer_size=1)
@@ -89,11 +95,11 @@ def create_data_pipeline(input_text_word_dataset,
                          char_vocab_index,
                          char_pad,
                          char_feat_enable,
+                         random_seed,
                          enable_shuffle,
                          buffer_size,
                          data_size,
-                         batch_size,
-                         random_seed):
+                         batch_size):
     """create data pipeline"""
     default_pad_id = tf.constant(0, shape=[], dtype=tf.int32)
     default_dataset_tensor = tf.constant(0, shape=[1,1], dtype=tf.int32)
@@ -113,7 +119,6 @@ def create_data_pipeline(input_text_word_dataset,
     dataset = tf.data.Dataset.zip((input_text_word_dataset, input_text_char_dataset))
     
     if enable_shuffle == True:
-        buffer_size = min(buffer_size, data_size)
         dataset = dataset.shuffle(buffer_size, random_seed)
     
     dataset = dataset.batch(batch_size=batch_size)
@@ -153,17 +158,18 @@ def create_text_dataset(input_data_set,
                         char_vocab_index,
                         char_max_size,
                         char_pad,
-                        char_feat_enable):
+                        char_feat_enable,
+                        num_parallel):
     """create word/char-level dataset for input data"""
     word_dataset = None
     if word_feat_enable == True:
         word_dataset = input_data_set.map(lambda sent: generate_word_feat(sent,
-            word_vocab_index, word_max_size, word_pad, word_sos, word_eos))
+            word_vocab_index, word_max_size, word_pad, word_sos, word_eos), num_parallel_calls=num_parallel)
     
     char_dataset = None
     if char_feat_enable == True:
         char_dataset = input_data_set.map(lambda sent: generate_char_feat(sent,
-            word_max_size, word_sos, word_eos, char_vocab_index, char_max_size, char_pad))
+            word_max_size, word_sos, word_eos, char_vocab_index, char_max_size, char_pad), num_parallel_calls=num_parallel)
     
     return word_dataset, char_dataset
 
