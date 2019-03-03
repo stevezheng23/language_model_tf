@@ -80,7 +80,8 @@ def create_train_model(logger,
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
             mode="train", external_data=external_data, scope=hyperparams.model_scope)
         
-        return TrainModel(graph=graph, model=model, data_pipeline=data_pipeline, word_embedding=word_embed_data)
+        return TrainModel(graph=graph, model=model, data_pipeline=data_pipeline,
+            input_data=input_data, word_embedding=word_embed_data)
 
 def create_eval_model(logger,
                       hyperparams):
@@ -112,14 +113,14 @@ def create_eval_model(logger,
             data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
                 word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
                 hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
-                hyperparams.train_shuffle_buffer_size, text_placeholder, data_size_placeholder, batch_size_placeholder)
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
+                text_placeholder, data_size_placeholder, batch_size_placeholder)
         else:
             if word_embed_data is not None:
                 external_data["word_embedding"] = word_embed_data
             
             logger.log_print("# create eval text dataset")
-            text_dataset = get_text_dataset(hyperparams.data_train_file)
+            text_dataset = get_text_dataset(hyperparams.data_eval_file)
             input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
                 word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
                 hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
@@ -129,8 +130,8 @@ def create_eval_model(logger,
             data_pipeline = create_data_pipeline(input_text_word_dataset, input_text_char_dataset,
                 word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
                 hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
-                hyperparams.train_shuffle_buffer_size, len(input_data), hyperparams.train_eval_batch_size)
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
+                len(input_data), hyperparams.train_eval_batch_size)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
@@ -167,8 +168,8 @@ def create_decode_model(logger,
         data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
             word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
             hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-            hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
-            hyperparams.train_shuffle_buffer_size, text_placeholder, data_size_placeholder, batch_size_placeholder)
+            hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
+            text_placeholder, data_size_placeholder, batch_size_placeholder)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
@@ -207,14 +208,14 @@ def create_encode_model(logger,
             data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
                 word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
                 hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
-                hyperparams.train_shuffle_buffer_size, text_placeholder, data_size_placeholder, batch_size_placeholder)
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
+                text_placeholder, data_size_placeholder, batch_size_placeholder)
         else:
             if word_embed_data is not None:
                 external_data["word_embedding"] = word_embed_data
             
             logger.log_print("# create encode text dataset")
-            text_dataset = get_text_dataset(hyperparams.data_train_file)
+            text_dataset = get_text_dataset(hyperparams.data_eval_file)
             input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
                 word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
                 hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
@@ -224,8 +225,8 @@ def create_encode_model(logger,
             data_pipeline = create_data_pipeline(input_text_word_dataset, input_text_char_dataset,
                 word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
                 hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
-                hyperparams.train_shuffle_buffer_size, len(input_data), hyperparams.train_eval_batch_size)
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
+                len(input_data), hyperparams.train_eval_batch_size)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
