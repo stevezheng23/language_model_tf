@@ -39,8 +39,8 @@ def pipeline_initialize(sess,
         "data_size": data_size,
         "input_data": input_data
     }
-
-     if pipeline_mode == "dynamic":
+    
+    if pipeline_mode == "dynamic" or enable_sample == True:
         sess.run(model.data_pipeline.initializer,
             feed_dict={model.data_pipeline.input_text_placeholder: input_data,
                 model.data_pipeline.data_size_placeholder: data_size,
@@ -61,7 +61,7 @@ def intrinsic_eval(logger,
                    ckpt_file,
                    eval_mode):
     load_model(sess, model, ckpt_file, eval_mode)
-    data_dict = pipeline_initialize(sess, model, pipeline_mode, len(input_data), batch_size)
+    data_dict = pipeline_initialize(sess, model, pipeline_mode, len(model.input_data), batch_size)
     
     loss = 0.0
     word_count = 0
@@ -87,8 +87,7 @@ def intrinsic_eval(logger,
 def sample_decode(logger,
                   sess,
                   model,
-                  input_data,
-                  word_embedding,
+                  pipeline_mode,
                   sample_size,
                   random_seed,
                   global_step,
@@ -141,7 +140,7 @@ def sample_encode(result_writer,
                   ckpt_file,
                   eval_mode):
     load_model(sess, model, ckpt_file, eval_mode)
-    data_dict = pipeline_initialize(sess, model, pipeline_mode, len(input_data), batch_size)
+    data_dict = pipeline_initialize(sess, model, pipeline_mode, len(model.input_data), batch_size)
     
     encode_result_list = []
     while True:
@@ -158,6 +157,7 @@ def sample_encode(result_writer,
         except  tf.errors.OutOfRangeError:
             break
     
+    data_size = data_dict["data_size"]
     if data_size != len(encode_result_list):
         raise ValueError("encode result size is not equal to input data size")
     

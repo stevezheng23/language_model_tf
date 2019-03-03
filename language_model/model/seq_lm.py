@@ -141,7 +141,7 @@ class SequenceLM(BaseModel):
             self.ckpt_debug_name = os.path.join(self.ckpt_debug_dir, "model_debug_ckpt")
             self.ckpt_epoch_name = os.path.join(self.ckpt_epoch_dir, "model_epoch_ckpt")
             
-            if self.mode == "infer":
+            if self.mode in ["eval", "decode", "encode"]:
                 self.ckpt_debug_saver = tf.train.Saver(self.variable_list)
                 self.ckpt_epoch_saver = tf.train.Saver(self.variable_list, max_to_keep=self.hyperparams.train_num_epoch)  
             
@@ -184,7 +184,7 @@ class SequenceLM(BaseModel):
                 word_feat_layer = WordFeat(vocab_size=self.word_vocab_size, embed_dim=word_embed_dim,
                     dropout=word_dropout, pretrained=word_embed_pretrained, embedding=self.word_embedding,
                     num_gpus=self.num_gpus, default_gpu_id=self.default_gpu_id, regularizer=self.regularizer,
-                    random_seed=self.random_seed, feedable=True, trainable=word_feat_trainable)
+                    random_seed=self.random_seed, trainable=word_feat_trainable)
                 
                 (text_word_feat,
                     text_word_feat_mask) = word_feat_layer(text_word, text_word_mask)
@@ -440,7 +440,6 @@ class WordFeat(object):
                  default_gpu_id=0,
                  regularizer=None,
                  random_seed=0,
-                 feedable=True,
                  trainable=True,
                  scope="word_feat"):
         """initialize word-level featurization layer"""
@@ -453,13 +452,12 @@ class WordFeat(object):
         self.default_gpu_id = default_gpu_id
         self.regularizer = regularizer
         self.random_seed = random_seed
-        self.feedable = feedable
         self.trainable = trainable
         self.scope = scope
         
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
             self.embedding_layer = create_embedding_layer(self.vocab_size, self.embed_dim, self.pretrained, self.embedding,
-                self.num_gpus, self.default_gpu_id, None, self.random_seed, self.feedable, self.trainable)
+                self.num_gpus, self.default_gpu_id, None, self.random_seed, self.trainable)
             
             self.dropout_layer = create_dropout_layer(self.dropout, self.num_gpus, self.default_gpu_id, self.random_seed)
     
@@ -516,7 +514,7 @@ class CharFeat(object):
         
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
             self.embedding_layer = create_embedding_layer(self.vocab_size, self.embed_dim, False, None,
-                self.num_gpus, self.default_gpu_id, None, self.random_seed, False, self.trainable)
+                self.num_gpus, self.default_gpu_id, None, self.random_seed, self.trainable)
             
             self.conv_layer = create_convolution_layer("stacked_multi_1d", 1, self.embed_dim,
                 self.unit_dim, self.window_size, 1, "SAME", self.activation, [self.dropout], None,
