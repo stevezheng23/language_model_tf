@@ -32,6 +32,7 @@ class BaseModel(object):
                  logger,
                  hyperparams,
                  data_pipeline,
+                 external_data,
                  mode="train",
                  scope="base"):
         """initialize language model base model"""
@@ -46,6 +47,7 @@ class BaseModel(object):
         self.learning_rate = None
         self.global_step = None
         self.train_summary = None
+        self.word_embedding = external_data["word_embedding"] if external_data is not None and "word_embedding" in external_data else None
         self.word_embedding_placeholder = None
         
         self.batch_size = tf.size(tf.reduce_max(self.data_pipeline.input_text_word_mask, axis=[-1,-2]))
@@ -174,9 +176,10 @@ class BaseModel(object):
               sess,
               word_embedding):
         """train model"""
-        word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
+        feed_word_embed = (self.hyperparams.model_word_embed_pretrained and
+            word_embedding is not None and self.word_embedding_placeholder is not None)
         
-        if word_embed_pretrained == True:
+        if feed_word_embed == True:
             _, loss, learning_rate, global_step, batch_size, summary = sess.run([self.update_op,
                 self.train_loss, self.learning_rate, self.global_step, self.batch_size, self.train_summary],
                 feed_dict={self.word_embedding_placeholder: word_embedding})
@@ -191,9 +194,10 @@ class BaseModel(object):
                  sess,
                  word_embedding):
         """evaluate model"""
-        word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
+        feed_word_embed = (self.hyperparams.model_word_embed_pretrained and
+            word_embedding is not None and self.word_embedding_placeholder is not None)
         
-        if word_embed_pretrained == True:
+        if feed_word_embed == True:
             loss, word_count, batch_size = sess.run([self.eval_loss, self.word_count, self.batch_size],
                 feed_dict={self.word_embedding_placeholder: word_embedding})
         else:
@@ -205,9 +209,10 @@ class BaseModel(object):
                sess,
                word_embedding):
         """decode model"""
-        word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
+        feed_word_embed = (self.hyperparams.model_word_embed_pretrained and
+            word_embedding is not None and self.word_embedding_placeholder is not None)
         
-        if word_embed_pretrained == True:
+        if feed_word_embed == True:
             (decode_predict, decode_sequence_length,
                 batch_size) = sess.run([self.decode_predict, self.decode_sequence_length, self.batch_size],
                 feed_dict={self.word_embedding_placeholder: word_embedding})
@@ -223,9 +228,10 @@ class BaseModel(object):
                sess,
                word_embedding):
         """encode model"""
-        word_embed_pretrained = self.hyperparams.model_word_embed_pretrained
+        feed_word_embed = (self.hyperparams.model_word_embed_pretrained and
+            word_embedding is not None and self.word_embedding_placeholder is not None)
         
-        if word_embed_pretrained == True:
+        if feed_word_embed == True:
             (encode_result, encode_sequence_length,
                 batch_size) = sess.run([self.encode_result, self.encode_sequence_length, self.batch_size],
                 feed_dict={self.word_embedding_placeholder: word_embedding})

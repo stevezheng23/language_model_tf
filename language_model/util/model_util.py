@@ -10,7 +10,8 @@ __all__ = ["TrainModel", "EvalModel", "DecodeModel", "EncodeModel",
            "create_train_model", "create_eval_model", "create_decode_model", "create_encode_model",
            "init_model", "load_model"]
 
-class TrainModel(collections.namedtuple("TrainModel", ("graph", "model", "data_pipeline", "word_embedding"))):
+class TrainModel(collections.namedtuple("TrainModel",
+    ("graph", "model", "data_pipeline", "input_data", "word_embedding"))):
     pass
 
 class EvalModel(collections.namedtuple("EvalModel",
@@ -39,23 +40,45 @@ def create_train_model(logger,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
-        logger.log_print("# create train text dataset")
-        text_dataset = get_text_dataset(hyperparams.data_train_file)
-        input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
-            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
-            hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
-            char_vocab_index, hyperparams.data_max_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
-        
-        logger.log_print("# create train data pipeline")
-        data_pipeline = create_data_pipeline(input_text_word_dataset, input_text_char_dataset,
-            word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
-            hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-            hyperparams.model_char_feat_enable, hyperparams.train_enable_shuffle, hyperparams.train_shuffle_buffer_size,
-            len(input_data), hyperparams.train_batch_size, hyperparams.train_random_seed)
+        external_data = {}
+        if hyperparams.data_pipeline_mode == "dynamic":
+            logger.log_print("# create train text dataset")
+            text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
+            text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
+            input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
+                word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
+                hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
+                hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_num_parallel)
+
+            logger.log_print("# create train data pipeline")
+            data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
+            batch_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
+            data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
+                word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
+                hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
+                hyperparams.train_shuffle_buffer_size, text_placeholder, data_size_placeholder, batch_size_placeholder)
+        else:
+            if word_embed_data is not None:
+                external_data["word_embedding"] = word_embed_data
+            
+            logger.log_print("# create train text dataset")
+            text_dataset = get_text_dataset(hyperparams.data_train_file)
+            input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
+                word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
+                hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
+                hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_num_parallel)
+
+            logger.log_print("# create train data pipeline")
+            data_pipeline = create_data_pipeline(input_text_word_dataset, input_text_char_dataset,
+                word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
+                hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
+                hyperparams.train_shuffle_buffer_size, len(input_data), hyperparams.train_batch_size)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
-            mode="train", scope=hyperparams.model_scope)
+            mode="train", external_data=external_data, scope=hyperparams.model_scope)
         
         return TrainModel(graph=graph, model=model, data_pipeline=data_pipeline, word_embedding=word_embed_data)
 
@@ -73,25 +96,45 @@ def create_eval_model(logger,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
-        logger.log_print("# create eval text dataset")
-        text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
-        text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
-        input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
-            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
-            hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
-            char_vocab_index, hyperparams.data_max_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
-        
-        logger.log_print("# create eval data pipeline")
-        data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
-        batch_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
-        data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
-            word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
-            hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-            hyperparams.model_char_feat_enable, text_placeholder, data_size_placeholder, batch_size_placeholder)
+        external_data = {}
+        if hyperparams.data_pipeline_mode == "dynamic":
+            logger.log_print("# create eval text dataset")
+            text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
+            text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
+            input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
+                word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
+                hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
+                hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_num_parallel)
+
+            logger.log_print("# create eval data pipeline")
+            data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
+            batch_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
+            data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
+                word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
+                hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
+                hyperparams.train_shuffle_buffer_size, text_placeholder, data_size_placeholder, batch_size_placeholder)
+        else:
+            if word_embed_data is not None:
+                external_data["word_embedding"] = word_embed_data
+            
+            logger.log_print("# create eval text dataset")
+            text_dataset = get_text_dataset(hyperparams.data_train_file)
+            input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
+                word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
+                hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
+                hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_num_parallel)
+
+            logger.log_print("# create eval data pipeline")
+            data_pipeline = create_data_pipeline(input_text_word_dataset, input_text_char_dataset,
+                word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
+                hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
+                hyperparams.train_shuffle_buffer_size, len(input_data), hyperparams.train_eval_batch_size)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
-            mode="eval", scope=hyperparams.model_scope)
+            mode="eval", external_data=external_data, scope=hyperparams.model_scope)
         
         return EvalModel(graph=graph, model=model, data_pipeline=data_pipeline,
             input_data=input_data, word_embedding=word_embed_data)
@@ -114,21 +157,22 @@ def create_decode_model(logger,
         text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
         text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
         input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
-            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
-            hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
-            char_vocab_index, hyperparams.data_max_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
-        
+            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
+            hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
+            hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_num_parallel)
+
         logger.log_print("# create decode data pipeline")
         data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
         batch_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
         data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
             word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
             hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-            hyperparams.model_char_feat_enable, text_placeholder, data_size_placeholder, batch_size_placeholder)
+            hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
+            hyperparams.train_shuffle_buffer_size, text_placeholder, data_size_placeholder, batch_size_placeholder)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
-            mode="decode", scope=hyperparams.model_scope)
+            mode="decode", external_data={}, scope=hyperparams.model_scope)
         
         return DecodeModel(graph=graph, model=model, data_pipeline=data_pipeline,
             input_data=input_data, word_embedding=word_embed_data)
@@ -147,25 +191,45 @@ def create_encode_model(logger,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
         
-        logger.log_print("# create encode text dataset")
-        text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
-        text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
-        input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
-            word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad,
-            hyperparams.data_word_sos, hyperparams.data_word_eos, hyperparams.model_word_feat_enable,
-            char_vocab_index, hyperparams.data_max_char_size, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
-        
-        logger.log_print("# create encode data pipeline")
-        data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
-        batch_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
-        data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
-            word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
-            hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
-            hyperparams.model_char_feat_enable, text_placeholder, data_size_placeholder, batch_size_placeholder)
+        external_data = {}
+        if hyperparams.data_pipeline_mode == "dynamic":
+            logger.log_print("# create encode text dataset")
+            text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
+            text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
+            input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
+                word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
+                hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
+                hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_num_parallel)
+
+            logger.log_print("# create encode data pipeline")
+            data_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
+            batch_size_placeholder = tf.placeholder(shape=[], dtype=tf.int64)
+            data_pipeline = create_dynamic_pipeline(input_text_word_dataset, input_text_char_dataset,
+                word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
+                hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
+                hyperparams.train_shuffle_buffer_size, text_placeholder, data_size_placeholder, batch_size_placeholder)
+        else:
+            if word_embed_data is not None:
+                external_data["word_embedding"] = word_embed_data
+            
+            logger.log_print("# create encode text dataset")
+            text_dataset = get_text_dataset(hyperparams.data_train_file)
+            input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
+                word_vocab_index, hyperparams.data_max_word_size, hyperparams.data_word_pad, hyperparams.data_word_sos,
+                hyperparams.data_word_eos, hyperparams.model_word_feat_enable, char_vocab_index, hyperparams.data_max_char_size,
+                hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_num_parallel)
+
+            logger.log_print("# create encode data pipeline")
+            data_pipeline = create_data_pipeline(input_text_word_dataset, input_text_char_dataset,
+                word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
+                hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
+                hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
+                hyperparams.train_shuffle_buffer_size, len(input_data), hyperparams.train_eval_batch_size)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
-            mode="encode", scope=hyperparams.model_scope)
+            mode="encode", external_data=external_data, scope=hyperparams.model_scope)
         
         return EncodeModel(graph=graph, model=model, data_pipeline=data_pipeline,
             input_data=input_data, word_embedding=word_embed_data)

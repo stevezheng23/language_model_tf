@@ -20,30 +20,55 @@ def add_arguments(parser):
     parser.add_argument("--mode", help="mode to run", required=True)
     parser.add_argument("--config", help="path to json config", required=True)
 
+def pipeline_initialize(sess,
+                        model,
+                        pipeline_mode,
+                        data_size,
+                        batch_size,
+                        enable_sample=False,
+                        random_seed=0):
+    data_size = min(len(model.input_data), data_size)
+    if enable_sample == True:
+        np.random.seed(random_seed)
+        sample_index = np.random.randint(0, len(model.input_data), size=data_size)
+        input_data = [model.input_data[index] for index in sample_index]
+    else:
+        input_data = model.input_data[:data_size]
+    
+    data_dict = {
+        "data_size": data_size,
+        "input_data": input_data
+    }
+
+     if pipeline_mode == "dynamic":
+        sess.run(model.data_pipeline.initializer,
+            feed_dict={model.data_pipeline.input_text_placeholder: input_data,
+                model.data_pipeline.data_size_placeholder: data_size,
+                model.data_pipeline.batch_size_placeholder: batch_size})
+    else:
+        sess.run(model.data_pipeline.initializer)
+    
+    return data_dict
+
 def intrinsic_eval(logger,
                    summary_writer,
                    sess,
                    model,
-                   input_data,
-                   word_embedding,
+                   pipeline_mode,
                    batch_size,
                    global_step,
                    epoch,
                    ckpt_file,
                    eval_mode):
-    data_size = len(input_data)
     load_model(sess, model, ckpt_file, eval_mode)
-    sess.run(model.data_pipeline.initializer,
-        feed_dict={model.data_pipeline.input_text_placeholder: input_data,
-            model.data_pipeline.data_size_placeholder: data_size,
-            model.data_pipeline.batch_size_placeholder: batch_size})
+    data_dict = pipeline_initialize(sess, model, pipeline_mode, len(input_data), batch_size)
     
     loss = 0.0
     word_count = 0
     sample_size = 0
     while True:
         try:
-            eval_result = model.model.evaluate(sess, word_embedding)
+            eval_result = model.model.evaluate(sess, model.word_embedding)
             loss += eval_result.loss * eval_result.batch_size
             word_count += eval_result.word_count
             sample_size += eval_result.batch_size
@@ -70,18 +95,12 @@ def sample_decode(logger,
                   epoch,
                   ckpt_file,
                   eval_mode):
-    np.random.seed(random_seed)
-    sample_index = np.random.randint(0, len(input_data), size=sample_size)
-    sample_data = [input_data[index] for index in sample_index]
-    
     load_model(sess, model, ckpt_file, eval_mode)
-    sess.run(model.data_pipeline.initializer,
-        feed_dict={model.data_pipeline.input_text_placeholder: sample_data,
-            model.data_pipeline.data_size_placeholder: sample_size,
-            model.data_pipeline.batch_size_placeholder: sample_size})
+    data_dict = pipeline_initialize(sess, model, pipeline_mode, sample_size, sample_size, True, random_seed)
     
-    decode_result = model.model.decode(sess, word_embedding)
+    decode_result = model.model.decode(sess, model.word_embedding)
     
+    sample_data = data_dict["input_data"]
     sample_input_list = []
     sample_output_list = []
     sample_reference_list = []
@@ -113,8 +132,7 @@ def sample_decode(logger,
 def sample_encode(result_writer,
                   sess,
                   model,
-                  input_data,
-                  word_embedding,
+                  pipeline_mode,
                   encode_type,
                   encode_layer_list,
                   batch_size,
@@ -122,17 +140,13 @@ def sample_encode(result_writer,
                   epoch,
                   ckpt_file,
                   eval_mode):
-    data_size = len(input_data)
     load_model(sess, model, ckpt_file, eval_mode)
-    sess.run(model.data_pipeline.initializer,
-        feed_dict={model.data_pipeline.input_text_placeholder: input_data,
-            model.data_pipeline.data_size_placeholder: data_size,
-            model.data_pipeline.batch_size_placeholder: batch_size})
+    data_dict = pipeline_initialize(sess, model, pipeline_mode, len(input_data), batch_size)
     
     encode_result_list = []
     while True:
         try:
-            encode_result = model.model.encode(sess, word_embedding)
+            encode_result = model.model.encode(sess, model.word_embedding)
             encode_result_batch = [{
                 "sample_encode": list(encode_result.encode_output[i].tolist()),
                 "sequence_length": int(encode_result.sequence_length[i]),
@@ -216,10 +230,10 @@ def train(logger,
                 if step_in_epoch % hyperparams.train_step_per_eval == 0 and enable_eval == True:
                     ckpt_file = eval_model.model.get_latest_ckpt("debug")
                     intrinsic_eval(eval_logger, eval_summary_writer,
-                        eval_sess, eval_model, eval_model.input_data, eval_model.word_embedding,
+                        eval_sess, eval_model, hyperparams.data_pipeline_mode,
                         hyperparams.train_eval_batch_size, global_step, epoch, ckpt_file, "debug")
-                    sample_decode(eval_logger, decode_sess, decode_model, decode_model.input_data,
-                        decode_model.word_embedding, hyperparams.train_decode_sample_size,
+                    sample_decode(eval_logger, decode_sess, decode_model,
+                        hyperparams.data_pipeline_mode, hyperparams.train_decode_sample_size,
                         hyperparams.train_random_seed + global_step, global_step, epoch, ckpt_file, "debug")
             except tf.errors.OutOfRangeError:
                 train_logger.check()
@@ -228,10 +242,10 @@ def train(logger,
                 if enable_eval == True:
                     ckpt_file = eval_model.model.get_latest_ckpt("epoch")
                     intrinsic_eval(eval_logger, eval_summary_writer,
-                        eval_sess, eval_model, eval_model.input_data, eval_model.word_embedding,
+                        eval_sess, eval_model, hyperparams.data_pipeline_mode,
                         hyperparams.train_eval_batch_size, global_step, epoch, ckpt_file, "epoch")
-                    sample_decode(eval_logger, decode_sess, decode_model, decode_model.input_data,
-                        decode_model.word_embedding, hyperparams.train_decode_sample_size,
+                    sample_decode(eval_logger, decode_sess, decode_model,
+                        hyperparams.data_pipeline_mode, hyperparams.train_decode_sample_size,
                         hyperparams.train_random_seed + global_step, global_step, epoch, ckpt_file, "epoch")
                 break
     
@@ -276,10 +290,10 @@ def evaluate(logger,
     ckpt_file_list = eval_model.model.get_ckpt_list(eval_mode)
     for i, ckpt_file in enumerate(ckpt_file_list):
         intrinsic_eval(eval_logger, eval_summary_writer,
-            eval_sess, eval_model, eval_model.input_data, eval_model.word_embedding,
+            eval_sess, eval_model, hyperparams.data_pipeline_mode,
             hyperparams.train_eval_batch_size, i, i, ckpt_file, eval_mode)
-        sample_decode(eval_logger, decode_sess, decode_model, decode_model.input_data,
-            decode_model.word_embedding, hyperparams.train_decode_sample_size,
+        sample_decode(eval_logger, decode_sess, decode_model,
+            hyperparams.data_pipeline_mode, hyperparams.train_decode_sample_size,
             hyperparams.train_random_seed + i, i, i, ckpt_file, eval_mode)
     
     eval_summary_writer.close_writer()
@@ -310,8 +324,8 @@ def encode(logger,
     logger.log_print("##### start encoding #####")
     encode_mode = "debug" if enable_debug == True else "epoch"
     ckpt_file = encode_model.model.get_latest_ckpt(encode_mode)
-    sample_encode(result_writer, encode_sess, encode_model, encode_model.input_data,
-        encode_model.word_embedding, hyperparams.model_encode_type, hyperparams.model_encode_layer_list,
+    sample_encode(result_writer, encode_sess, encode_model, hyperparams.data_pipeline_mode,
+        hyperparams.model_encode_type, hyperparams.model_encode_layer_list,
         hyperparams.train_encode_batch_size, 0, 0, ckpt_file, encode_mode)
     
     logger.log_print("##### finish encoding #####")

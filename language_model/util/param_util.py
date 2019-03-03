@@ -31,6 +31,8 @@ def create_default_hyperparams(config_type):
             data_char_vocab_threshold=0,
             data_char_unk="*",
             data_char_pad="#",
+            data_pipeline_mode="default",
+            data_num_parallel=4,
             data_log_output_dir="",
             data_result_output_dir="",
             train_random_seed=100,
