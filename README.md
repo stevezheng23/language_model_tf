@@ -31,7 +31,11 @@ python language_model_run.py --mode eval --config config/config_lm_template.xxx.
 # visualize summary via tensorboard
 tensorboard --logdir=output
 ```
-
+* Encode text
+```bash
+# encode text into vector
+python language_model_run.py --mode encode --config config/config_lm_template.xxx.json
+```
 ## Reference
 * Matthew E. Peters, Mark Neumann, Mohit Iyyer, Matthew Gardner, Christopher T Clark, Kenton Lee,
 and Luke S. Zettlemoyer. [Deep contextualized word representations](https://arxiv.org/abs/1802.05365) [2018]
