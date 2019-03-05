@@ -26,16 +26,22 @@ python language_model_run.py --mode train --config config/config_lm_template.xxx
 # run experiment in eval only mode
 python language_model_run.py --mode eval --config config/config_lm_template.xxx.json
 ```
+* Encode text
+```bash
+# encode text as ELMo vector
+python language_model_run.py --mode encode --config config/config_lm_template.xxx.json
+```
+* Search hyper-parameter
+```bash
+# random search hyper-parameters
+python hparam_search.py --base-config config/config_lm_template.xxx.json --search-config config/config_search_template.xxx.json --num-group 10 --random-seed 100 --output-dir config/search
+```
 * Visualize summary
 ```bash
 # visualize summary via tensorboard
 tensorboard --logdir=output
 ```
-* Encode text
-```bash
-# encode text into vector
-python language_model_run.py --mode encode --config config/config_lm_template.xxx.json
-```
+
 ## Reference
 * Matthew E. Peters, Mark Neumann, Mohit Iyyer, Matthew Gardner, Christopher T Clark, Kenton Lee,
 and Luke S. Zettlemoyer. [Deep contextualized word representations](https://arxiv.org/abs/1802.05365) [2018]
