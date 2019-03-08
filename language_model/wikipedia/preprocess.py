@@ -1,14 +1,15 @@
 import argparse
+import os
 import os.path
 import re
+import json
 import nltk
 
 def add_arguments(parser):
-    parser.add_argument("--format", help="format to generate", required=True)
-    parser.add_argument("--input_file", help="path to input file", required=True)
-    parser.add_argument("--output_file", help="path to output file", required=True)
-    parser.add_argument("--min_seq_len", help="mininum sequence length", required=False, default=10)
-    parser.add_argument("--max_seq_len", help="maximum sequence length", required=False, default=1000)
+    parser.add_argument("--input_dir", help="input directory", required=True)
+    parser.add_argument("--output_dir", help="output directory", required=True)
+    parser.add_argument("--min_seq_len", help="mininum sequence length", required=False, type=int, default=10)
+    parser.add_argument("--max_seq_len", help="maximum sequence length", required=False, type=int, default=1000)
 
 def normalize_text(text, lower_case=True, remove_punc=False):
     def process_token(tokens):
@@ -45,45 +46,42 @@ def normalize_text(text, lower_case=True, remove_punc=False):
     
     return norm_text.strip()
 
-def preprocess(file_name,
+def preprocess(input_dir,
+               output_dir,
                min_seq_len,
                max_seq_len):
-    if not os.path.exists(file_name):
-        raise FileNotFoundError("file not found")
+    if not os.path.exists(input_dir):
+        raise FileNotFoundError("input dir not found")
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
     
-    processed_data_list = []
-    with open(file_name, "r") as file:
-        i = 0
-        for line in file:
-            line = line.strip()
-            if not line.startswith("@@"):
-                continue
-            
-            segements = " ".join(line.split(' ')[1:]).split('@ @')
-            segements = [normalize_text(seg, False, False).split(' ') for seg in segements]
-            segements = [" ".join(seg[:max_seq_len]) for seg in segements if len(seg) >= min_seq_len]
-            
-            processed_data_list.extend(segements)
-    
-    return processed_data_list
-
-def output_to_json(data_list, file_name):
-    with open(file_name, "w") as file:
-        data_json = json.dumps(data_list, indent=4)
-        file.write(data_json)
-
-def output_to_plain(data_list, file_name):
-    with open(file_name, "wb") as file:
-        for data in data_list:
-            data_plain = "{0}\r\n".format(data)
-            file.write(data_plain.encode("utf-8"))
+    for file_name in os.listdir(input_dir):
+        input_file = os.path.join(input_dir, file_name)
+        if not os.path.exists(input_file) or not os.path.isfile(input_file):
+            continue
+        
+        print("process file: {0}".format(file_name))
+        
+        processed_lines = []
+        with open(input_file, "rb") as file:
+            for line in file:
+                input_data = json.loads(line.decode("utf-8").strip())
+                norm_text = normalize_text(input_data["text"], False, False)
+                
+                if len(norm_text) < min_seq_len:
+                    continue
+                
+                while norm_text:
+                    processed_lines.append(norm_text[:max_seq_len])
+                    norm_text = norm_text[max_seq_len:]
+        
+        output_file = os.path.join(output_dir, "{0}.{1}".format(file_name, "processed"))
+        with open(output_file, "wb") as file:
+            for processed_line in processed_lines:
+                file.write("{0}\r\n".format(processed_line).encode("utf-8"))
 
 def main(args):
-    processed_data = preprocess(args.input_file, args.min_seq_len, args.max_seq_len)
-    if (args.format == 'json'):
-        output_to_json(processed_data, args.output_file)
-    elif (args.format == 'plain'):
-        output_to_plain(processed_data, args.output_file)
+    preprocess(args.input_dir, args.output_dir, args.min_seq_len, args.max_seq_len)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
