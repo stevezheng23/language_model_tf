@@ -6,6 +6,7 @@ import json
 import nltk
 
 def add_arguments(parser):
+    parser.add_argument("--dataset", help="dataset", required=True)
     parser.add_argument("--input_dir", help="input directory", required=True)
     parser.add_argument("--output_dir", help="output directory", required=True)
     parser.add_argument("--min_seq_len", help="mininum sequence length", required=False, type=int, default=10)
@@ -46,10 +47,10 @@ def normalize_text(text, lower_case=True, remove_punc=False):
     
     return norm_text.strip()
 
-def preprocess(input_dir,
-               output_dir,
-               min_seq_len,
-               max_seq_len):
+def preprocess_wikipedia(input_dir,
+                         output_dir,
+                         min_seq_len,
+                         max_seq_len):
     if not os.path.exists(input_dir):
         raise FileNotFoundError("input dir not found")
     if not os.path.exists(output_dir):
@@ -75,13 +76,51 @@ def preprocess(input_dir,
                     processed_lines.append(norm_text[:max_seq_len])
                     norm_text = norm_text[max_seq_len:]
         
-        output_file = os.path.join(output_dir, "{0}.{1}".format(file_name, "processed"))
+        output_file = os.path.join(output_dir, "{0}.{1}".format(os.path.splitext(file_name)[0], "processed"))
+        with open(output_file, "wb") as file:
+            for processed_line in processed_lines:
+                file.write("{0}\r\n".format(processed_line).encode("utf-8"))
+
+def preprocess_bookcorpus(input_dir,
+                          output_dir,
+                          min_seq_len,
+                          max_seq_len):
+    if not os.path.exists(input_dir):
+        raise FileNotFoundError("input dir not found")
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    
+    for file_name in os.listdir(input_dir):
+        input_file = os.path.join(input_dir, file_name)
+        if not os.path.exists(input_file) or not os.path.isfile(input_file):
+            continue
+        
+        print("process file: {0}".format(file_name))
+        
+        processed_lines = []
+        with open(input_file, "rb") as file:
+            raw_text = file.read().decode("utf-8")
+            norm_text = normalize_text(raw_text, False, False)
+
+            if len(norm_text) < min_seq_len:
+                continue
+            
+            while norm_text:
+                processed_lines.append(norm_text[:max_seq_len])
+                norm_text = norm_text[max_seq_len:]
+        
+        output_file = os.path.join(output_dir, "{0}.{1}".format(os.path.splitext(file_name)[0], "processed"))
         with open(output_file, "wb") as file:
             for processed_line in processed_lines:
                 file.write("{0}\r\n".format(processed_line).encode("utf-8"))
 
 def main(args):
-    preprocess(args.input_dir, args.output_dir, args.min_seq_len, args.max_seq_len)
+    if args.dataset == "wikipedia":
+        preprocess_wikipedia(args.input_dir, args.output_dir, args.min_seq_len, args.max_seq_len)
+    elif args.dataset == "bookcorpus":
+        preprocess_bookcorpus(args.input_dir, args.output_dir, args.min_seq_len, args.max_seq_len)
+    else:
+        raise ValueError("pre-processing on dataset: {0} is not supported".format(data_source))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
