@@ -68,13 +68,14 @@ def preprocess_wikipedia(input_dir,
             for line in file:
                 input_data = json.loads(line.decode("utf-8").strip())
                 norm_text = normalize_text(input_data["text"], False, False)
-                
-                if len(norm_text) < min_seq_len:
+                norm_tokens = norm_text.split(" ")
+
+                if len(norm_tokens) < min_seq_len:
                     continue
-                
-                while norm_text:
-                    processed_lines.append(norm_text[:max_seq_len])
-                    norm_text = norm_text[max_seq_len:]
+
+                while len(norm_tokens) > 0:
+                    processed_lines.append(" ".join(norm_tokens[:max_seq_len]))
+                    norm_tokens = norm_tokens[max_seq_len:]
         
         output_file = os.path.join(output_dir, "{0}.{1}".format(os.path.splitext(file_name)[0], "processed"))
         with open(output_file, "wb") as file:
@@ -101,13 +102,14 @@ def preprocess_bookcorpus(input_dir,
         with open(input_file, "rb") as file:
             raw_text = file.read().decode("utf-8")
             norm_text = normalize_text(raw_text, False, False)
-
-            if len(norm_text) < min_seq_len:
+            norm_tokens = norm_text.split(" ")
+            
+            if len(norm_tokens) < min_seq_len:
                 continue
             
-            while norm_text:
-                processed_lines.append(norm_text[:max_seq_len])
-                norm_text = norm_text[max_seq_len:]
+            while len(norm_tokens) > 0:
+                processed_lines.append(" ".join(norm_tokens[:max_seq_len]))
+                norm_tokens = norm_tokens[max_seq_len:]
         
         output_file = os.path.join(output_dir, "{0}.{1}".format(os.path.splitext(file_name)[0], "processed"))
         with open(output_file, "wb") as file:
