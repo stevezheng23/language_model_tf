@@ -38,7 +38,7 @@ def create_train_model(logger,
             hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_sos,
             hyperparams.data_word_eos, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
-            hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
+            hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_large_file_train)
         
         external_data = {}
         if hyperparams.data_pipeline_mode == "dynamic":
@@ -95,7 +95,7 @@ def create_eval_model(logger,
             hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_sos,
             hyperparams.data_word_eos, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
-            hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
+            hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable, False)
         
         external_data = {}
         if hyperparams.data_pipeline_mode == "dynamic":
@@ -152,7 +152,7 @@ def create_decode_model(logger,
             hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_sos,
             hyperparams.data_word_eos, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
-            hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
+            hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable, False)
         
         logger.log_print("# create decode text dataset")
         text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
@@ -190,7 +190,7 @@ def create_encode_model(logger,
             hyperparams.data_full_embedding_file, hyperparams.data_word_unk, hyperparams.data_word_pad, hyperparams.data_word_sos,
             hyperparams.data_word_eos, hyperparams.model_word_feat_enable, hyperparams.model_word_embed_pretrained,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
-            hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable)
+            hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable, False)
         
         external_data = {}
         if hyperparams.data_pipeline_mode == "dynamic":

@@ -424,12 +424,15 @@ def prepare_data(logger,
                  char_vocab_threshold,
                  char_unk,
                  char_pad,
-                 char_feat_enable):
+                 char_feat_enable,
+                 large_file_train):
     """prepare data"""
-    logger.log_print("# loading input data from {0}".format(input_path))
-    input_data = load_data(input_path)
-    input_data_size = len(input_data)
-    logger.log_print("# input data has {0} lines".format(input_data_size))
+    input_data = None
+    if large_file_train == False:
+        logger.log_print("# loading input data from {0}".format(input_path))
+        input_data = load_data(input_path)
+        input_data_size = len(input_data)
+        logger.log_print("# input data has {0} lines".format(input_data_size))
     
     word_embed_data = None
     if pretrain_word_embed == True:
