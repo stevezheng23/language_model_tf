@@ -101,6 +101,9 @@ def create_data_pipeline(input_text_word_dataset,
                          data_size,
                          batch_size):
     """create data pipeline"""
+    if data_size is None and (word_feat_enable == False or char_feat_enable == False):
+        raise ValueError("both word-level and char-level must be enabled in large file mode")
+    
     default_pad_id = tf.constant(0, shape=[], dtype=tf.int32)
     default_dataset_tensor = tf.constant(0, shape=[1,1], dtype=tf.int32)
     

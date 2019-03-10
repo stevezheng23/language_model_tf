@@ -40,7 +40,9 @@ def create_train_model(logger,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable, hyperparams.data_large_file_train)
         
+        data_size = len(input_data) if input_data is not None else None
         external_data = {}
+        
         if hyperparams.data_pipeline_mode == "dynamic":
             logger.log_print("# create train text dataset")
             text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
@@ -74,7 +76,7 @@ def create_train_model(logger,
                 word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
                 hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
                 hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
-                hyperparams.train_shuffle_buffer_size, len(input_data), hyperparams.train_batch_size)
+                hyperparams.train_shuffle_buffer_size, data_size, hyperparams.train_batch_size)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
@@ -97,7 +99,9 @@ def create_eval_model(logger,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable, False)
         
+        data_size = len(input_data) if input_data is not None else None
         external_data = {}
+        
         if hyperparams.data_pipeline_mode == "dynamic":
             logger.log_print("# create eval text dataset")
             text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
@@ -131,7 +135,7 @@ def create_eval_model(logger,
                 word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
                 hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
                 hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
-                len(input_data), hyperparams.train_eval_batch_size)
+                data_size, hyperparams.train_eval_batch_size)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
@@ -192,7 +196,9 @@ def create_encode_model(logger,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable, False)
         
+        data_size = len(input_data) if input_data is not None else None
         external_data = {}
+        
         if hyperparams.data_pipeline_mode == "dynamic":
             logger.log_print("# create encode text dataset")
             text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
@@ -226,7 +232,7 @@ def create_encode_model(logger,
                 word_vocab_size, word_vocab_index, word_vocab_inverted_index, hyperparams.data_word_pad,
                 hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
                 hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
-                len(input_data), hyperparams.train_eval_batch_size)
+                data_size, hyperparams.train_eval_batch_size)
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
