@@ -17,6 +17,17 @@ Language modeling is a task that assigns probabilities to sequences of words or 
 * [GloVe](https://nlp.stanford.edu/projects/glove/) is an unsupervised learning algorithm for obtaining vector representations for words. Training is performed on aggregated global word-word co-occurrence statistics from a corpus, and the resulting representations showcase interesting linear substructures of the word vector space.
 
 ## Usage
+* Preprocess data
+```bash
+# convert raw data
+python preprocess/convert_data.py --dataset wikipedia --input_dir data/wikipedia/raw --output_dir data/wikipedia/processed --min_seq_len 0 --max_seq_len 512
+# prepare vocab & embed files
+python prepare_resource.py \
+--input_dir data/wikipedia/processed --max_word_size 512 --max_char_size 16 \
+--full_embedding_file data/glove/glove.840B.300d.txt --word_embedding_file data/wikipedia/resource/lm.word.embed --word_embed_dim 300 \
+--word_vocab_file data/wikipedia/resource/lm.word.vocab --word_vocab_size 100000 \
+--char_vocab_file data/wikipedia/resource/lm.char.vocab --char_vocab_size 1000
+```
 * Run experiment
 ```bash
 # run experiment in train + eval mode
