@@ -208,9 +208,9 @@ def train(logger,
     
     logger.log_print("##### start training #####")
     global_step = 0
-    train_model.model.save(train_sess, global_step, "debug")
     for epoch in range(hyperparams.train_num_epoch):
-        train_sess.run(train_model.data_pipeline.initializer)
+        data_dict = pipeline_initialize(train_sess, train_model,
+            hyperparams.data_pipeline_mode, len(train_model.input_data), hyperparams.train_batch_size)
         step_in_epoch = 0
         while True:
             try:
