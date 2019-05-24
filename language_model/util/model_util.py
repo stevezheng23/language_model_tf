@@ -42,6 +42,8 @@ def create_train_model(logger,
         
         data_size = len(input_data) if input_data is not None else None
         external_data = {}
+        if word_embed_data is not None:
+            external_data["word_embedding"] = word_embed_data
         
         if hyperparams.data_pipeline_mode == "dynamic":
             logger.log_print("# create train text dataset")
@@ -60,10 +62,7 @@ def create_train_model(logger,
                 hyperparams.model_word_feat_enable, char_vocab_size, char_vocab_index, hyperparams.data_char_pad,
                 hyperparams.model_char_feat_enable, hyperparams.train_random_seed, hyperparams.train_enable_shuffle,
                 hyperparams.train_shuffle_buffer_size, text_placeholder, data_size_placeholder, batch_size_placeholder)
-        else:
-            if word_embed_data is not None:
-                external_data["word_embedding"] = word_embed_data
-            
+        else:            
             logger.log_print("# create train text dataset")
             text_dataset = get_text_dataset(hyperparams.data_train_file)
             input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
@@ -101,6 +100,8 @@ def create_eval_model(logger,
         
         data_size = len(input_data) if input_data is not None else None
         external_data = {}
+        if word_embed_data is not None:
+            external_data["word_embedding"] = word_embed_data
         
         if hyperparams.data_pipeline_mode == "dynamic":
             logger.log_print("# create eval text dataset")
@@ -120,9 +121,6 @@ def create_eval_model(logger,
                 hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
                 text_placeholder, data_size_placeholder, batch_size_placeholder)
         else:
-            if word_embed_data is not None:
-                external_data["word_embedding"] = word_embed_data
-            
             logger.log_print("# create eval text dataset")
             text_dataset = get_text_dataset(hyperparams.data_eval_file)
             input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,
@@ -158,6 +156,10 @@ def create_decode_model(logger,
             hyperparams.data_char_vocab_file, hyperparams.data_char_vocab_size, hyperparams.data_char_vocab_threshold,
             hyperparams.data_char_unk, hyperparams.data_char_pad, hyperparams.model_char_feat_enable, False)
         
+        external_data = {}
+        if word_embed_data is not None:
+            external_data["word_embedding"] = word_embed_data
+        
         logger.log_print("# create decode text dataset")
         text_placeholder = tf.placeholder(shape=[None], dtype=tf.string)
         text_dataset = tf.data.Dataset.from_tensor_slices(text_placeholder)
@@ -177,7 +179,7 @@ def create_decode_model(logger,
         
         model_creator = get_model_creator(hyperparams.model_type)
         model = model_creator(logger=logger, hyperparams=hyperparams, data_pipeline=data_pipeline,
-            mode="decode", external_data={}, scope=hyperparams.model_scope)
+            mode="decode", external_data=external_data, scope=hyperparams.model_scope)
         
         return DecodeModel(graph=graph, model=model, data_pipeline=data_pipeline,
             input_data=input_data, word_embedding=word_embed_data)
@@ -198,6 +200,8 @@ def create_encode_model(logger,
         
         data_size = len(input_data) if input_data is not None else None
         external_data = {}
+        if word_embed_data is not None:
+            external_data["word_embedding"] = word_embed_data
         
         if hyperparams.data_pipeline_mode == "dynamic":
             logger.log_print("# create encode text dataset")
@@ -217,9 +221,6 @@ def create_encode_model(logger,
                 hyperparams.model_char_feat_enable, hyperparams.train_random_seed, False, 0,
                 text_placeholder, data_size_placeholder, batch_size_placeholder)
         else:
-            if word_embed_data is not None:
-                external_data["word_embedding"] = word_embed_data
-            
             logger.log_print("# create encode text dataset")
             text_dataset = get_text_dataset(hyperparams.data_eval_file)
             input_text_word_dataset, input_text_char_dataset = create_text_dataset(text_dataset,

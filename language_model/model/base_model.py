@@ -47,9 +47,8 @@ class BaseModel(object):
         self.learning_rate = None
         self.global_step = None
         self.train_summary = None
-        self.word_embedding = external_data["word_embedding"] if external_data is not None and "word_embedding" in external_data else None
-        self.word_embedding_placeholder = None
         
+        self.word_embedding = external_data["word_embedding"] if external_data is not None and "word_embedding" in external_data else None
         self.batch_size = tf.size(tf.reduce_max(self.data_pipeline.input_text_word_mask, axis=[-1,-2]))
         
         self.num_gpus = self.hyperparams.device_num_gpus
@@ -173,71 +172,36 @@ class BaseModel(object):
         return update_model, clipped_gradients, gradient_norm
     
     def train(self,
-              sess,
-              word_embedding):
+              sess):
         """train model"""
-        feed_word_embed = (self.hyperparams.model_word_embed_pretrained and
-            word_embedding is not None and self.word_embedding_placeholder is not None)
-        
-        if feed_word_embed == True:
-            _, loss, learning_rate, global_step, batch_size, summary = sess.run([self.update_op,
-                self.train_loss, self.learning_rate, self.global_step, self.batch_size, self.train_summary],
-                feed_dict={self.word_embedding_placeholder: word_embedding})
-        else:
-            _, loss, learning_rate, global_step, batch_size, summary = sess.run([self.update_op,
-                self.train_loss, self.learning_rate, self.global_step, self.batch_size, self.train_summary])
+        _, loss, learning_rate, global_step, batch_size, summary = sess.run([self.update_op,
+            self.train_loss, self.learning_rate, self.global_step, self.batch_size, self.train_summary])
         
         return TrainResult(loss=loss, learning_rate=learning_rate,
             global_step=global_step, batch_size=batch_size, summary=summary)
     
     def evaluate(self,
-                 sess,
-                 word_embedding):
+                 sess):
         """evaluate model"""
-        feed_word_embed = (self.hyperparams.model_word_embed_pretrained and
-            word_embedding is not None and self.word_embedding_placeholder is not None)
-        
-        if feed_word_embed == True:
-            loss, word_count, batch_size = sess.run([self.eval_loss, self.word_count, self.batch_size],
-                feed_dict={self.word_embedding_placeholder: word_embedding})
-        else:
-            loss, word_count, batch_size = sess.run([self.eval_loss, self.word_count, self.batch_size])
+        loss, word_count, batch_size = sess.run([self.eval_loss, self.word_count, self.batch_size])
         
         return EvalResult(loss=loss, word_count=word_count, batch_size=batch_size)
     
     def decode(self,
-               sess,
-               word_embedding):
+               sess):
         """decode model"""
-        feed_word_embed = (self.hyperparams.model_word_embed_pretrained and
-            word_embedding is not None and self.word_embedding_placeholder is not None)
-        
-        if feed_word_embed == True:
-            (decode_predict, decode_sequence_length,
-                batch_size) = sess.run([self.decode_predict, self.decode_sequence_length, self.batch_size],
-                feed_dict={self.word_embedding_placeholder: word_embedding})
-        else:
-            (decode_predict, decode_sequence_length,
-                batch_size) = sess.run([self.decode_predict, self.decode_sequence_length, self.batch_size])
+        (decode_predict, decode_sequence_length,
+            batch_size) = sess.run([self.decode_predict, self.decode_sequence_length, self.batch_size])
         
         decode_output = [predict[:sequence_length] for predict, sequence_length in list(zip(decode_predict, decode_sequence_length))]
         
         return DecodeResult(decode_output=decode_output, sequence_length=decode_sequence_length, batch_size=batch_size)
     
     def encode(self,
-               sess,
-               word_embedding):
+               sess):
         """encode model"""
-        feed_word_embed = (self.hyperparams.model_word_embed_pretrained and
-            word_embedding is not None and self.word_embedding_placeholder is not None)
-        
-        if feed_word_embed == True:
-            (encode_result, encode_sequence_length,
-                batch_size) = sess.run([self.encode_result, self.encode_sequence_length, self.batch_size],
-                feed_dict={self.word_embedding_placeholder: word_embedding})
-        else:
-            (encode_result, encode_sequence_length,
-                batch_size) = sess.run([self.encode_result, self.encode_sequence_length, self.batch_size])
+        (encode_result, encode_sequence_length,
+            batch_size) = sess.run([self.encode_result, self.encode_sequence_length, self.batch_size])
         
         encode_output = [result[:sequence_length] for result, sequence_length in list(zip(encode_result, encode_sequence_length))]
         
