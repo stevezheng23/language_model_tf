@@ -61,7 +61,10 @@ def intrinsic_eval(logger,
                    ckpt_file,
                    eval_mode):
     load_model(sess, model, ckpt_file, eval_mode)
-    data_dict = pipeline_initialize(sess, model, pipeline_mode, len(model.input_data), batch_size)
+    if model.input_data is None:
+        sess.run(model.data_pipeline.initializer)
+    else:
+        pipeline_initialize(sess, model, pipeline_mode, len(model.input_data), batch_size)
     
     loss = 0.0
     word_count = 0
@@ -95,6 +98,9 @@ def sample_decode(logger,
                   ckpt_file,
                   eval_mode):
     load_model(sess, model, ckpt_file, eval_mode)
+    if model.input_data is None:
+        return
+    
     data_dict = pipeline_initialize(sess, model, pipeline_mode, sample_size, sample_size, True, random_seed)
     
     decode_result = model.model.decode(sess)
@@ -140,7 +146,10 @@ def sample_encode(result_writer,
                   ckpt_file,
                   eval_mode):
     load_model(sess, model, ckpt_file, eval_mode)
-    data_dict = pipeline_initialize(sess, model, pipeline_mode, len(model.input_data), batch_size)
+    if model.input_data is None:
+        sess.run(model.data_pipeline.initializer)
+    else:
+        pipeline_initialize(sess, model, pipeline_mode, len(model.input_data), batch_size)
     
     encode_result_list = []
     while True:
@@ -156,10 +165,6 @@ def sample_encode(result_writer,
             encode_result_list.extend(encode_result_batch)
         except  tf.errors.OutOfRangeError:
             break
-    
-    data_size = data_dict["data_size"]
-    if data_size != len(encode_result_list):
-        raise ValueError("encode result size is not equal to input data size")
     
     result_writer.write_result(encode_result_list, "encode", "{0}_{1}".format(global_step, epoch))
 
@@ -209,8 +214,12 @@ def train(logger,
     logger.log_print("##### start training #####")
     global_step = 0
     for epoch in range(hyperparams.train_num_epoch):
-        data_dict = pipeline_initialize(train_sess, train_model,
-            hyperparams.data_pipeline_mode, len(train_model.input_data), hyperparams.train_batch_size)
+        if train_model.input_data is None:
+            train_sess.run(train_model.data_pipeline.initializer)
+        else:
+            pipeline_initialize(train_sess, train_model, hyperparams.data_pipeline_mode,
+                len(train_model.input_data), hyperparams.train_batch_size)
+        
         step_in_epoch = 0
         while True:
             try:
