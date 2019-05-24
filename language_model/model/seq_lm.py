@@ -192,10 +192,8 @@ class SequenceLM(BaseModel):
                 text_feat_mask_list.append(text_word_feat_mask)
                 
                 word_unit_dim = word_embed_dim
-                self.word_embedding_placeholder = word_feat_layer.get_embedding_placeholder()
             else:
                 word_unit_dim = 0
-                self.word_embedding_placeholder = None
             
             if char_feat_enable == True:
                 self.logger.log_print("# build char-level representation layer")
@@ -476,10 +474,6 @@ class WordFeat(object):
             input_word_feat_mask = input_word_dropout_mask
         
         return input_word_feat, input_word_feat_mask
-    
-    def get_embedding_placeholder(self):
-        """get word-level embedding placeholder"""
-        return self.embedding_layer.get_embedding_placeholder()
 
 class CharFeat(object):
     """char-level featurization layer"""

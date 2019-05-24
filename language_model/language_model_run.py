@@ -68,7 +68,7 @@ def intrinsic_eval(logger,
     sample_size = 0
     while True:
         try:
-            eval_result = model.model.evaluate(sess, model.word_embedding)
+            eval_result = model.model.evaluate(sess)
             loss += eval_result.loss * eval_result.batch_size
             word_count += eval_result.word_count
             sample_size += eval_result.batch_size
@@ -97,7 +97,7 @@ def sample_decode(logger,
     load_model(sess, model, ckpt_file, eval_mode)
     data_dict = pipeline_initialize(sess, model, pipeline_mode, sample_size, sample_size, True, random_seed)
     
-    decode_result = model.model.decode(sess, model.word_embedding)
+    decode_result = model.model.decode(sess)
     
     sample_data = data_dict["input_data"]
     sample_input_list = []
@@ -145,7 +145,7 @@ def sample_encode(result_writer,
     encode_result_list = []
     while True:
         try:
-            encode_result = model.model.encode(sess, model.word_embedding)
+            encode_result = model.model.encode(sess)
             encode_result_batch = [{
                 "sample_encode": list(encode_result.encode_output[i].tolist()),
                 "sequence_length": int(encode_result.sequence_length[i]),
@@ -215,7 +215,7 @@ def train(logger,
         while True:
             try:
                 start_time = time.time()
-                train_result = train_model.model.train(train_sess, train_model.word_embedding)
+                train_result = train_model.model.train(train_sess)
                 end_time = time.time()
                 
                 global_step = train_result.global_step
