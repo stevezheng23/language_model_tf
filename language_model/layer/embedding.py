@@ -65,7 +65,7 @@ class PretrainedEmbedding(object):
         self.device_spec = get_device_spec(default_gpu_id, num_gpus)
         
         with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE), tf.device(self.device_spec):
-            initializer = tf.constant_initializer(self.embedding)
+            initializer = tf.constant_initializer(self.embed_data)
             self.embedding = tf.get_variable("pretrained_embedding", shape=[self.vocab_size, self.embed_dim],
                 initializer=initializer, regularizer=self.regularizer, trainable=self.trainable, dtype=tf.float32)
     
